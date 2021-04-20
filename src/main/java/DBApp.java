@@ -80,7 +80,7 @@ public class DBApp implements DBAppInterface{
     void writeCsvColumn(String tableName,String columnName,String columnType,
                         boolean clusteringKey,boolean indexed,int min,int max )throws IOException
     {
-        FileWriter csvWriter = new FileWriter("new.csv");
+        FileWriter csvWriter = new FileWriter("src/main/resources/metadata.csv");
 
         csvWriter.append(tableName);
         csvWriter.append(",");
@@ -104,7 +104,7 @@ public class DBApp implements DBAppInterface{
             csvWriter.append("FALSE");
         }
 
-        csvWriter.append("/n");
+        csvWriter.append("\n");
 
 
         csvWriter.flush();
