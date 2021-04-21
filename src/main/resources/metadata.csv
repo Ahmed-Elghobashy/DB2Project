@@ -1,1 +1,4 @@
 Student,id,java.lang.Integer,TRUE,FALSE
+Student,gpa,java.lang.double,FALSE,FALSE
+Student,name,java.lang.String,FALSE,FALSE
+Student,id,java.lang.Integer,TRUE,FALSE
