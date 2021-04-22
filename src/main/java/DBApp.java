@@ -18,7 +18,17 @@ public class DBApp implements DBAppInterface{
     }
 
    public void insertIntoTable(String tableName, Hashtable<String, Object> colNameValue) throws DBAppException, FileNotFoundException {
-       //read csvFile and get table metadata
+
+        Table table= getTable(tableName);
+        ArrayList<String>  pages = table.getPages();
+        //check for errors in input
+
+        //if  pages is empty (Create page and insert)
+
+        //if page is full (create new page and insert/shift)
+
+        //if page is not full  and insert at the end (simple case)
+
 
 
 
@@ -191,6 +201,63 @@ public class DBApp implements DBAppInterface{
         }
 
 
+
+      public static Table getTable(String  tableName){
+
+            for (int i = 0; i <tables.size() ; i++) {
+                if(tables.get(i).getName().equals(tableName))
+                {
+                    return  tables.get(i);
+                }
+
+            }
+            return null;
+        }
+
+        public static void  createPage(Table table) throws IOException {
+
+            int pageNumber = table.getPages().size();
+            createPageFile(table.getName(),pageNumber);
+            //create Vector and write  it to the page
+            Vector<Hashtable<String,Object> > page = new Vector<Hashtable<String,Object>>();
+            writeVectorToPageFile(page,getPagePath(table.getName(),pageNumber));
+
+
+        }
+
+        public static void createPageFile(String tableName,int pageNumber) throws IOException {
+
+
+            File pageFile = new File(getPagePath(tableName,pageNumber));
+            pageFile.createNewFile();
+
+        }
+
+
+
+        public static void writeVectorToPageFile(Vector vector,String pagePath) throws IOException {
+            FileOutputStream fileOut = new FileOutputStream(pagePath);
+            ObjectOutputStream objectOut = new ObjectOutputStream(fileOut);
+            objectOut.writeObject(vector);
+            objectOut.close();
+
+
+        }
+
+        public static String getPagePath(String tableName,int pageNumber){
+
+        return pagesDirectoryPath+"/"+tableName+""+pageNumber+".class";
+        }
+
+
+        public static Vector readVectorFromPageFile(String pagePath){
+
+         return null;
+        }
+
+
+
+
     public static void main(String[] args)throws DBAppException,IOException {
         String strTableName = "Student";
         DBApp dbApp = new DBApp( );
@@ -214,7 +281,9 @@ public class DBApp implements DBAppInterface{
 //          dbApp.init();
         Table test = new Table("Student");
         addPages(test);
-        System.out.println(test.getPages().get(2));
+//        System.out.println(test.getPages().get(2));
+        createPage(test);
+
     }
 
 }
