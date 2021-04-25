@@ -8,26 +8,37 @@ public class DBApp implements DBAppInterface{
 
     private static  final String metadataCSVPath = "src/main/resources/metadata.csv" ;
     private static  final String pagesDirectoryPath = "src/main/resources/pages" ;
+    private static int maxRows = 200;
 
     private static final ArrayList<Table> tables = new ArrayList<Table>();
 
     public void init() throws IOException {
 
         intializeTables();
+        //setMaxMin
 
     }
 
-   public void insertIntoTable(String tableName, Hashtable<String, Object> colNameValue) throws DBAppException, FileNotFoundException {
+   public void insertIntoTable(String tableName, Hashtable<String, Object> colNameValue) throws DBAppException, IOException, ClassNotFoundException {
 
         Table table= getTable(tableName);
         ArrayList<String>  pages = table.getPages();
         //check for errors in input
 
         //if  pages is empty (Create page and insert)
+       if(pages.isEmpty()){
+        insertIntoEmptyTable(table,colNameValue);
+       }
 
-        //if page is full (create new page and insert/shift)
+       //if page is not full  and insert at the end (simple case)
+       else if(checkPagesIsNotFull(table)!=-1){
 
-        //if page is not full  and insert at the end (simple case)
+       }
+
+
+       //if page is full (create new page and insert/shift)
+
+
 
 
 
@@ -167,10 +178,40 @@ public class DBApp implements DBAppInterface{
             }
         }
 
-
-
     }
 
+
+    // if return -1 then all pages are full
+    //otherwise returns the number of the first not full page
+    public static int checkPagesIsNotFull(Table table) throws IOException, ClassNotFoundException {
+        ArrayList<String> pages = table.getPages();
+
+        for (int  i =0;i<pages.size();i++)
+        {
+          String page = pages.get(i);
+          String pagePath = getPagePath(page);
+          boolean pageIsFull =  readVectorFromPageFile(pagePath).size()>=maxRows ;
+          if(!pageIsFull){
+              return i;
+          }
+
+        }
+
+
+        return -1;
+    }
+
+
+    public static String getPageName(String tableName,int pageNumber){
+        return tableName +""+pageNumber+".class";
+    }
+
+    public static void insertIntoEmptyTable(Table table, Hashtable<String,Object> colNameValue) throws IOException, ClassNotFoundException {
+        String newPagePath = createPage(table);
+        Vector<Hashtable<String,Object>> pageVector =  readVectorFromPageFile(newPagePath);
+        pageVector.add(colNameValue);
+        writeVectorToPageFile(pageVector,newPagePath);
+    }
 
     //check if page is related to the table by the naming convention
     public static boolean checkPageTable(Table table,String pageName)
@@ -214,21 +255,26 @@ public class DBApp implements DBAppInterface{
             return null;
         }
 
-        public static void  createPage(Table table) throws IOException {
+        //return page path
+        public static String  createPage(Table table) throws IOException {
 
             int pageNumber = table.getPages().size();
-            createPageFile(table.getName(),pageNumber);
+            String pagePath = getPagePath(table.getName(),pageNumber);
+            createPageFile(pagePath);
             //create Vector and write  it to the page
             Vector<Hashtable<String,Object> > page = new Vector<Hashtable<String,Object>>();
+            table.addPage(getPageName(table.getName(),pageNumber));
             writeVectorToPageFile(page,getPagePath(table.getName(),pageNumber));
 
-
+            return  pagePath;
         }
 
-        public static void createPageFile(String tableName,int pageNumber) throws IOException {
 
 
-            File pageFile = new File(getPagePath(tableName,pageNumber));
+        public static void createPageFile(String pagePath) throws IOException {
+
+
+            File pageFile = new File(pagePath);
             pageFile.createNewFile();
 
         }
@@ -249,16 +295,22 @@ public class DBApp implements DBAppInterface{
         return pagesDirectoryPath+"/"+tableName+""+pageNumber+".class";
         }
 
+        public static  String getPagePath (String pageName){
+        return  pagesDirectoryPath+"/"+pageName ;
+        }
 
-        public static Vector readVectorFromPageFile(String pagePath){
 
-         return null;
+        public static Vector readVectorFromPageFile(String pagePath) throws IOException, ClassNotFoundException {
+        FileInputStream fileIn =  new FileInputStream(pagePath);
+        ObjectInputStream objectIn =  new ObjectInputStream(fileIn);
+        Vector retVector = (Vector) objectIn.readObject();
+         return retVector;
         }
 
 
 
 
-    public static void main(String[] args)throws DBAppException,IOException {
+    public static void main(String[] args) throws DBAppException, IOException, ClassNotFoundException {
         String strTableName = "Student";
         DBApp dbApp = new DBApp( );
 //        Hashtable htblColNameType = new Hashtable( ); htblColNameType.put("id", "java.lang.Integer");
@@ -280,10 +332,12 @@ public class DBApp implements DBAppInterface{
 //        dbApp.createTable( strTableName, "id", htblColNameType,htblColNameMin,htblColNameMax );
 //          dbApp.init();
         Table test = new Table("Student");
-        addPages(test);
-//        System.out.println(test.getPages().get(2));
-        createPage(test);
-
+        Hashtable<String,Object> testHash = new Hashtable<>();
+        testHash.put("id",1);
+        testHash.put("name","Ahmed");
+        testHash.put("gpa","5.0");
+        insertIntoEmptyTable(test,testHash);
+        Vector<Hashtable<String,Object>> vector = readVectorFromPageFile(getPagePath("Student",0));
     }
 
 }
