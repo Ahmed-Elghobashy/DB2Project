@@ -5,6 +5,13 @@ public class DBApp implements DBAppInterface{
 
 
     //naming conventions for page : [tablename][page_number].class
+    // page header
+    // Hashtable :: Key:overflowPageName , Value : "[].class"
+    //              Key:maxKey        , Value:
+    //              Key:minKey         ,Value:
+    //              key:isOverflowOF   ,Value:
+
+    //naming conventionforOverFlowPages  [tablename][page_number]_[overflow number].class
 
     private static  final String metadataCSVPath = "src/main/resources/metadata.csv" ;
     private static  final String pagesDirectoryPath = "src/main/resources/pages" ;
@@ -25,18 +32,15 @@ public class DBApp implements DBAppInterface{
         ArrayList<String>  pages = table.getPages();
         //check for errors in input
 
+
+
         //if  pages is empty (Create page and insert)
        if(pages.isEmpty()){
         insertIntoEmptyTable(table,colNameValue);
        }
-
-       //if page is not full  and insert at the end (simple case)
-       else if(checkPagesIsNotFull(table)!=-1){
-
+        else {
+            getPageToInsertIn(colNameValue,pages,table);
        }
-
-
-       //if page is full (create new page and insert/shift)
 
 
 
@@ -161,12 +165,47 @@ public class DBApp implements DBAppInterface{
                 String tableName = tableCSV[0];
                 if (!tableCache.contains(tableName)) {
                     newTable = new Table(tableName);
+                    addPages(newTable);
+                    setColumns(metadataCSV,newTable);
+                    tableCache.add(newTable.getName());
                     tables.add(newTable);
                 }
-
             }
 
+
         }
+    }
+
+    public static void setColumns(ArrayList<String[]> metadataCSV,Table table){
+        for (String[] tableCSV :
+                metadataCSV) {
+            if(tableCSV.length>0){
+                String tableName = table.getName();
+                final int  TABLE_NAME= 0;
+                final int  COLUMN_NAME= 1;
+                final int COLUMN_TYPE=2;
+                final int ClUSTERING_KEY=3;
+                final int INDEXED=4;
+                final int MIN=5;
+                final int MAX =6;
+
+                if(tableCSV[TABLE_NAME].equals(tableName))
+                {
+                    Hashtable<String,String> column = new Hashtable<>();
+                    column.put(tableCSV[COLUMN_NAME],tableCSV[COLUMN_TYPE]);
+                    ArrayList< Hashtable<String,String>> columns = table.getColumns();
+                    if(tableCSV[ClUSTERING_KEY]=="TRUE"){
+                        table.setClusteringColumn(tableCSV[ClUSTERING_KEY]);
+                    }
+
+                }
+
+
+
+
+            }
+        }
+
     }
 
     public static void addPages(Table table){
@@ -183,7 +222,7 @@ public class DBApp implements DBAppInterface{
 
     // if return -1 then all pages are full
     //otherwise returns the number of the first not full page
-    public static int checkPagesIsNotFull(Table table) throws IOException, ClassNotFoundException {
+    public static boolean checkPagesIsNotFull(Table table) throws IOException, ClassNotFoundException {
         ArrayList<String> pages = table.getPages();
 
         for (int  i =0;i<pages.size();i++)
@@ -192,13 +231,13 @@ public class DBApp implements DBAppInterface{
           String pagePath = getPagePath(page);
           boolean pageIsFull =  readVectorFromPageFile(pagePath).size()>=maxRows ;
           if(!pageIsFull){
-              return i;
+              return true;
           }
 
         }
 
 
-        return -1;
+        return false;
     }
 
 
@@ -210,8 +249,38 @@ public class DBApp implements DBAppInterface{
         String newPagePath = createPage(table);
         Vector<Hashtable<String,Object>> pageVector =  readVectorFromPageFile(newPagePath);
         pageVector.add(colNameValue);
+        modifyHeader(pageVector,colNameValue,table);
         writeVectorToPageFile(pageVector,newPagePath);
     }
+
+    public static void modifyHeader(Vector pageVector,Hashtable<String,Object> colNameValue,Table table){
+
+        Hashtable<String,Object> header = (Hashtable<String, Object>) pageVector.get(0);
+        String clusteringColumn  = table.getClusteringColumn();
+        Comparable newTupleClusteringKey = (Comparable) colNameValue.get(clusteringColumn);
+        Comparable maxKey = (Comparable) header.get("maxKey");
+        Comparable minKey = (Comparable) header.get("minKey");
+
+        if ( maxKey==null || minKey==null ){
+            header.put("maxKey",newTupleClusteringKey);
+            header.put("minKey",newTupleClusteringKey);
+        }
+        else
+        {
+            if(maxKey.compareTo(newTupleClusteringKey)<0){
+                    header.put("maxKey",newTupleClusteringKey);
+            }
+            if(minKey.compareTo(newTupleClusteringKey)>0){
+                header.put("minKey",newTupleClusteringKey);
+            }
+        }
+
+
+
+
+
+    }
+
 
     //check if page is related to the table by the naming convention
     public static boolean checkPageTable(Table table,String pageName)
@@ -263,13 +332,67 @@ public class DBApp implements DBAppInterface{
             createPageFile(pagePath);
             //create Vector and write  it to the page
             Vector<Hashtable<String,Object> > page = new Vector<Hashtable<String,Object>>();
+            createHeaderForNewPage();
             table.addPage(getPageName(table.getName(),pageNumber));
             writeVectorToPageFile(page,getPagePath(table.getName(),pageNumber));
 
             return  pagePath;
         }
 
+        public static void createHeaderForNewPage(){
+        Hashtable<String,Object> header =  new Hashtable<String,Object>();
+        header.put("overflowPageName",null);
+        header.put("maxKey",null);
+        header.put("minKey",null);
+        header.put("isOverFlowOf",null);
+        }
 
+        //returns vector of page and  the next page
+        public static ArrayList<Vector> getPageToInsertIn(Hashtable<String,Object>  colNameValue ,ArrayList<String>  pages ,Table table) throws IOException, ClassNotFoundException {
+
+        ArrayList<Vector> retArray =  new ArrayList<>();
+        for (int i = 0;i<pages.size();i++) {
+                String page = pages.get(i);
+                String pagePath=getPagePath(page);
+                Vector<Hashtable<String,Object>> pageVector= readVectorFromPageFile(pagePath);
+                if(checkPageInsertion(pageVector,colNameValue,table)){
+                    retArray.add(pageVector);
+                    i++;
+                    if(i<pages.size())
+                    {
+                         page = pages.get(i);
+                         pagePath=getPagePath(page);
+                        Vector<Hashtable<String,Object>> nextPageVector = readVectorFromPageFile(pagePath);
+                        retArray.add(nextPageVector);
+                    }
+                    break;
+                }
+            }
+
+        return retArray;
+
+        }
+
+        public static boolean checkPageInsertion(Vector<Hashtable<String,Object>> pageVector,Hashtable colNameValue,Table table){
+            String clusteringColumn =  table.getClusteringColumn();
+            Hashtable<String,Object> header = pageVector.get(0);
+            Comparable clusteringKey =(Comparable) colNameValue.get(clusteringColumn);
+            Comparable minKey = (Comparable) header.get("minKey");
+            Comparable maxKey = (Comparable) header.get("maxKey");
+            boolean retBoolean = (minKey.compareTo(clusteringColumn)<=0 && maxKey.compareTo(clusteringColumn)>=0 );
+            return retBoolean;
+
+        }
+
+    public static void createHeaderForOverflowPage(String parentPageName){
+            Hashtable<String,Object> header =  new Hashtable<String,Object>();
+            header.put("overflowPageName",null);
+            header.put("maxKey",null);
+            header.put("minKey",null);
+            header.put("isOverFlowOf",parentPageName);
+
+
+        }
 
         public static void createPageFile(String pagePath) throws IOException {
 
