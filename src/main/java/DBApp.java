@@ -9,12 +9,29 @@ public class DBApp implements DBAppInterface{
     // Hashtable :: Key:overflowPageName , Value : "[].class"
     //              Key:maxKey        , Value:
     //              Key:minKey         ,Value:
-    //              key:isOverflowOF   ,Value:
+    //              key:isOverflowOF   ,Value: true/false
+    // if page is main page (not overflow) the maxKey and minKey is of the page and all its overflow , while
+
+
+   // to do
+   // read config
+   // Check inputs and throw input and throw exceptions
+   // test getPagesToInsertIn method
+   // test testBinarySearch
+
+
+    //low+1 == high
+   // 0  10 20 30 40 50 60 70 80 90 100
+
+
+    //does the header count in the max rows ?
+
+
 
     //naming conventionforOverFlowPages  [tablename][page_number]_[overflow number].class
 
     private static  final String metadataCSVPath = "src/main/resources/metadata.csv" ;
-    private static  final String pagesDirectoryPath = "src/main/resources/pages" ;
+    private static  final String pagesDirectoryPath = "src/main/resources/data" ;
     private static int maxRows = 200;
 
     private static final ArrayList<Table> tables = new ArrayList<Table>();
@@ -22,7 +39,7 @@ public class DBApp implements DBAppInterface{
     public void init() throws IOException {
 
         intializeTables();
-        //setMaxMin
+        //config
 
     }
 
@@ -34,12 +51,24 @@ public class DBApp implements DBAppInterface{
 
 
 
-        //if  pages is empty (Create page and insert)
+        //if no pages exist (Create page and insert)
        if(pages.isEmpty()){
         insertIntoEmptyTable(table,colNameValue);
        }
         else {
-            getPageToInsertIn(colNameValue,pages,table);
+           ArrayList<Vector> pagesToInsertIn = getPageToInsertIn(colNameValue,pages,table);
+           if(pagesToInsertIn.size()==0)
+               throw new DBAppException();
+
+           Vector<Hashtable<String,Object>> mainPage = pagesToInsertIn.get(0);
+
+           if(!checkIfPageIsFull(mainPage)){
+
+
+
+           }
+
+
        }
 
 
@@ -49,11 +78,16 @@ public class DBApp implements DBAppInterface{
 
    }
 
-   public void createTable(String strTableName,
+    private static boolean checkIfPageIsFull(Vector<Hashtable<String, Object>> mainPage) {
+        return mainPage.size()==maxRows+1;
+    }
+
+    public void createTable(String strTableName,
                             String strClusteringKeyColumn, Hashtable<String,String> htblColNameType,
                             Hashtable<String,String> htblColNameMin, Hashtable<String,String> htblColNameMax )
             throws DBAppException, IOException {
         //check if table name is unique
+
         writeCsvTable( strTableName,strClusteringKeyColumn, htblColNameType,htblColNameMin, htblColNameMax);
 
     }
@@ -220,25 +254,25 @@ public class DBApp implements DBAppInterface{
     }
 
 
-    // if return -1 then all pages are full
-    //otherwise returns the number of the first not full page
-    public static boolean checkPagesIsNotFull(Table table) throws IOException, ClassNotFoundException {
-        ArrayList<String> pages = table.getPages();
-
-        for (int  i =0;i<pages.size();i++)
-        {
-          String page = pages.get(i);
-          String pagePath = getPagePath(page);
-          boolean pageIsFull =  readVectorFromPageFile(pagePath).size()>=maxRows ;
-          if(!pageIsFull){
-              return true;
-          }
-
-        }
-
-
-        return false;
-    }
+//    // if return -1 then all pages are full
+//    //otherwise returns the number of the first not full page
+//    public static boolean checkPagesIsNotFull(Table table) throws IOException, ClassNotFoundException {
+//        ArrayList<String> pages = table.getPages();
+//
+//        for (int  i =0;i<pages.size();i++)
+//        {
+//          String page = pages.get(i);
+//          String pagePath = getPagePath(page);
+//          boolean pageIsFull =  readVectorFromPageFile(pagePath).size()>=maxRows ;
+//          if(!pageIsFull){
+//              return true;
+//          }
+//
+//        }
+//
+//
+//        return false;
+//    }
 
 
     public static String getPageName(String tableName,int pageNumber){
@@ -249,11 +283,12 @@ public class DBApp implements DBAppInterface{
         String newPagePath = createPage(table);
         Vector<Hashtable<String,Object>> pageVector =  readVectorFromPageFile(newPagePath);
         pageVector.add(colNameValue);
-        modifyHeader(pageVector,colNameValue,table);
+        modifyHeaderInsert(pageVector,colNameValue,table);
         writeVectorToPageFile(pageVector,newPagePath);
     }
 
-    public static void modifyHeader(Vector pageVector,Hashtable<String,Object> colNameValue,Table table){
+    //takes pageVector and and record to be inserted and modify the header
+    public static void modifyHeaderInsert(Vector pageVector, Hashtable<String,Object> colNameValue, Table table){
 
         Hashtable<String,Object> header = (Hashtable<String, Object>) pageVector.get(0);
         String clusteringColumn  = table.getClusteringColumn();
@@ -347,7 +382,8 @@ public class DBApp implements DBAppInterface{
         header.put("isOverFlowOf",null);
         }
 
-        //returns vector of page and  the next page
+        // returns vector of page and  the next page
+        // if it returns Arraylist of size 1 then the page returned is the last page
         public static ArrayList<Vector> getPageToInsertIn(Hashtable<String,Object>  colNameValue ,ArrayList<String>  pages ,Table table) throws IOException, ClassNotFoundException {
 
         ArrayList<Vector> retArray =  new ArrayList<>();
@@ -355,34 +391,53 @@ public class DBApp implements DBAppInterface{
                 String page = pages.get(i);
                 String pagePath=getPagePath(page);
                 Vector<Hashtable<String,Object>> pageVector= readVectorFromPageFile(pagePath);
-                if(checkPageInsertion(pageVector,colNameValue,table)){
+
+                if(i==0 && !checkKeyGreaterThanMin(pageVector,colNameValue,table) )
+                {
+
                     retArray.add(pageVector);
-                    i++;
-                    if(i<pages.size())
-                    {
-                         page = pages.get(i);
-                         pagePath=getPagePath(page);
-                        Vector<Hashtable<String,Object>> nextPageVector = readVectorFromPageFile(pagePath);
-                        retArray.add(nextPageVector);
-                    }
+                    checkIfNextPageExistsAndAdd(i,pages,retArray);
+                    break;
+                }
+
+                if(checkKeyGreaterThanMin(pageVector,colNameValue,table)){
+                    retArray.add(pageVector);
+                    checkIfNextPageExistsAndAdd(i,pages,retArray);
+
                     break;
                 }
             }
 
+        //check if exists next page and add it s
         return retArray;
 
         }
 
-        public static boolean checkPageInsertion(Vector<Hashtable<String,Object>> pageVector,Hashtable colNameValue,Table table){
+        public static void checkIfNextPageExistsAndAdd(int i,ArrayList<String> pages,ArrayList<Vector> retArray) throws IOException, ClassNotFoundException {
+            i++;
+            if(i<pages.size())
+            {
+                String page = pages.get(i);
+                String pagePath=getPagePath(page);
+                Vector<Hashtable<String,Object>> nextPageVector = readVectorFromPageFile(pagePath);
+                retArray.add(nextPageVector);
+            }
+
+        }
+
+        //return if key is greater than minKey
+        public static boolean checkKeyGreaterThanMin(Vector<Hashtable<String,Object>> pageVector,Hashtable<String,Object> colNameValue,Table table){
+
             String clusteringColumn =  table.getClusteringColumn();
             Hashtable<String,Object> header = pageVector.get(0);
             Comparable clusteringKey =(Comparable) colNameValue.get(clusteringColumn);
             Comparable minKey = (Comparable) header.get("minKey");
-            Comparable maxKey = (Comparable) header.get("maxKey");
-            boolean retBoolean = (minKey.compareTo(clusteringColumn)<=0 && maxKey.compareTo(clusteringColumn)>=0 );
+            boolean retBoolean = (minKey.compareTo(clusteringColumn)<=0 );
             return retBoolean;
 
         }
+
+
 
     public static void createHeaderForOverflowPage(String parentPageName){
             Hashtable<String,Object> header =  new Hashtable<String,Object>();
@@ -430,6 +485,37 @@ public class DBApp implements DBAppInterface{
          return retVector;
         }
 
+    public static int binarySearchForInsert(Vector<Hashtable<String,Object>> vector, Comparable insertKey,String clustrColumn) {
+      return  binarySearchForInsert(vector,insertKey,0,vector.size(),clustrColumn);
+    }
+
+
+    // returns the index that we should insert in
+    // we must check if the index is greater than the vector size
+        public static int binarySearchForInsert(Vector<Hashtable<String,Object>> vector, Comparable insertKey, int low, int high,String clustrColumn) {
+        int index = Integer.MAX_VALUE;
+//            Comparable minKey;
+//         if(vector.isEmpty())
+//             minKey= (Comparable) vector.get(0).get(clustrColumn);
+//
+//            if(insertKey<)
+        while (low != high && low+1!=high) {
+            int mid = (low + high) / 2;
+            Comparable midKey =(Comparable) vector.get(mid).get(clustrColumn);
+            if (midKey.compareTo(insertKey)<0){
+                low = mid + 1;
+            } else {
+                high = mid - 1;
+            }
+        }
+
+            if(low+1==high)
+            {
+                return low+1;
+            }
+            else
+                return low;
+    }
 
 
 
@@ -454,13 +540,41 @@ public class DBApp implements DBAppInterface{
 //
 //        dbApp.createTable( strTableName, "id", htblColNameType,htblColNameMin,htblColNameMax );
 //          dbApp.init();
-        Table test = new Table("Student");
-        Hashtable<String,Object> testHash = new Hashtable<>();
-        testHash.put("id",1);
-        testHash.put("name","Ahmed");
-        testHash.put("gpa","5.0");
-        insertIntoEmptyTable(test,testHash);
-        Vector<Hashtable<String,Object>> vector = readVectorFromPageFile(getPagePath("Student",0));
+//        Table test = new Table("Student");
+//        Hashtable<String,Object> testHash = new Hashtable<>();
+//        testHash.put("id",1);
+//        testHash.put("name","Ahmed");
+//        testHash.put("gpa","5.0");
+//        insertIntoEmptyTable(test,testHash);
+//        Vector<Hashtable<String,Object>> vector = readVectorFromPageFile(getPagePath("Student",0));
+
+
+        Hashtable<String,Object> h1 = new Hashtable<>();
+        h1.put("id",0);
+        Hashtable<String,Object> h2 = new Hashtable<>();
+        h2.put("id",2);
+        Hashtable<String,Object> h3 = new Hashtable<>();
+        h3.put("id",3);
+        Hashtable<String,Object> h4 = new Hashtable<>();
+        h4.put("id",4);
+        Hashtable<String,Object> h5 = new Hashtable<>();
+        h5.put("id",5);
+        Hashtable<String,Object> h6 = new Hashtable<>();
+        h6.put("id",6);
+
+        Vector<Hashtable<String,Object>> vector = new Vector<>();
+        vector.add(h1);
+        vector.add(h2);
+        vector.add(h3);
+        vector.add(h4);
+        vector.add(h5);
+        vector.add(h6);
+
+        System.out.print(binarySearchForInsert(vector,1,0,vector.size(),"id"));
+
+
+
+
     }
 
 }
