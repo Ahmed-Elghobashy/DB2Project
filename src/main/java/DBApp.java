@@ -18,10 +18,11 @@ public class DBApp implements DBAppInterface{
    // Check inputs and throw input and throw exceptions
    // test getPagesToInsertIn method
    // test testBinarySearch
+   // test getOverFlowPages
 
 
     //low+1 == high
-   // 0  10 20 30 40 50 60 70 80 90 100
+   // 0 10 20 30 40 50 60 70 80 90 100
 
 
     //does the header count in the max rows ?
@@ -46,7 +47,13 @@ public class DBApp implements DBAppInterface{
    public void insertIntoTable(String tableName, Hashtable<String, Object> colNameValue) throws DBAppException, IOException, ClassNotFoundException {
 
         Table table= getTable(tableName);
+
+        if (table  == null)
+            throw new DBAppException();
+
         ArrayList<String>  pages = table.getPages();
+        String clusteringColumn = table.getClusteringColumn();
+        Comparable insertKey =(Comparable) colNameValue.get(clusteringColumn);
         //check for errors in input
 
 
@@ -60,9 +67,14 @@ public class DBApp implements DBAppInterface{
            if(pagesToInsertIn.size()==0)
                throw new DBAppException();
 
-           Vector<Hashtable<String,Object>> mainPage = pagesToInsertIn.get(0);
+           Vector<Hashtable<String,Object>> mainPageVector = pagesToInsertIn.get(0);
+           ArrayList<Vector<Hashtable<String,Object>>> overFlowPagesOfMainPage = getOverflowPages(mainPageVector);
 
-           if(!checkIfPageIsFull(mainPage)){
+           if(!checkIfPageIsFull(mainPageVector)){
+//               if(binarySearchForKey(mainPageVector,insertKey,clusteringColumn)){
+//                   throw new
+//               }
+//               if(checkIfKeyExistsInPageOrItsOverflow())
 
 
 
@@ -77,6 +89,34 @@ public class DBApp implements DBAppInterface{
 
 
    }
+
+    private static ArrayList<Vector<Hashtable<String,Object>>> getOverflowPages(Vector<Hashtable<String, Object>> mainPageVector) throws IOException, ClassNotFoundException {
+        ArrayList<Vector<Hashtable<String,Object>>> overFlowPages = new ArrayList<>();
+        Vector<Hashtable<String, Object>> overFlowPageVector = null;
+        Vector<Hashtable<String, Object>> loopPageVector = mainPageVector;
+        Hashtable<String,Object> loopPageHeader= null;
+        String overFlowPageName = null;
+
+         while(true) {
+             loopPageHeader = loopPageVector.get(0);
+             overFlowPageName = (String) loopPageHeader.get("overflowPageName");
+             if (overFlowPageName  != null)
+             {
+                 String overFlowPagePath = getPagePath(overFlowPageName);
+                 overFlowPageVector = readVectorFromPageFile(overFlowPagePath);
+                 overFlowPages.add(overFlowPageVector);
+                 loopPageVector = overFlowPageVector;
+             }
+             else
+             {
+                 break;
+             }
+         }
+
+
+
+        return overFlowPages;
+    }
 
     private static boolean checkIfPageIsFull(Vector<Hashtable<String, Object>> mainPage) {
         return mainPage.size()==maxRows+1;
@@ -96,20 +136,17 @@ public class DBApp implements DBAppInterface{
 
     public void createIndex(String strTableName,String[] strarrColName)throws DBAppException{
 
-       //update csvFile
 
     }
 
 
     public void updateTable(String tableName, String clusteringKeyValue, Hashtable<String, Object> columnNameValue) throws DBAppException
     {
-        //update csvFile
     }
 
 
     public void deleteFromTable(String tableName, Hashtable<String, Object> columnNameValue) throws DBAppException{
 
-        //delete csvFile
     }
 
     public Iterator  selectFromTable(SQLTerm[] sqlTerms, String[] arrayOperators) throws DBAppException{
@@ -485,16 +522,41 @@ public class DBApp implements DBAppInterface{
          return retVector;
         }
 
-    public static int binarySearchForInsert(Vector<Hashtable<String,Object>> vector, Comparable insertKey,String clustrColumn) {
-      return  binarySearchForInsert(vector,insertKey,0,vector.size(),clustrColumn);
+    public static boolean binarySearchForKey (Vector<Hashtable<String,Object>> vector, Comparable searchKey,String clustrColumn){
+        return binarySearchForKey(vector,searchKey,0,vector.size(),clustrColumn);
+    }
+
+
+    public static boolean binarySearchForKey(Vector<Hashtable<String,Object>> vector, Comparable searchKey, int low, int high, String clustrColumn) {
+        while (low <= high)
+        {
+            int mid = (low + high)/2;
+            Comparable midKey =(Comparable) vector.get(mid).get(clustrColumn);
+            if (searchKey.compareTo(midKey)==0) {
+                return true;
+            }
+            else if (searchKey.compareTo(midKey)<0) {
+                high = mid - 1;
+            }
+            else {
+                low = mid + 1;
+            }
+        }
+
+        // target doesn't exist in the array
+        return false;
+    }
+    public static int binarySearchForInsertIndex(Vector<Hashtable<String,Object>> vector, Comparable insertKey, String clustrColumn) {
+      return  binarySearchForInsertIndex(vector,insertKey,0,vector.size(),clustrColumn);
     }
 
 
     // returns the index that we should insert in
     // we must check if the index is greater than the vector size
-        public static int binarySearchForInsert(Vector<Hashtable<String,Object>> vector, Comparable insertKey, int low, int high,String clustrColumn) {
+
+        public static int binarySearchForInsertIndex(Vector<Hashtable<String,Object>> vector, Comparable insertKey, int low, int high, String clustrColumn) {
         int index = Integer.MAX_VALUE;
-//            Comparable minKey;
+//            Comparable minKey;x
 //         if(vector.isEmpty())
 //             minKey= (Comparable) vector.get(0).get(clustrColumn);
 //
@@ -570,7 +632,7 @@ public class DBApp implements DBAppInterface{
         vector.add(h5);
         vector.add(h6);
 
-        System.out.print(binarySearchForInsert(vector,1,0,vector.size(),"id"));
+        System.out.print(binarySearchForInsertIndex(vector,1,0,vector.size(),"id"));
 
 
 
