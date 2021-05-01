@@ -97,6 +97,7 @@ public class DBApp implements DBAppInterface{
                  Vector<Hashtable<String,Object>> overflowPageVector = overFlowPagesOfMainPage.get(0);
                  if(!checkIfPageIsFull(overflowPageVector)){
                      insertToPage(overflowPageVector,colNameValue,table);
+                     //modifyHeaderForMainPage
                  }
                  else{
                      Hashtable<String,Object> tempOverflowRecord = colNameValue;
