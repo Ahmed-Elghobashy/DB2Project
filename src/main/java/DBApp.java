@@ -23,6 +23,9 @@ public class DBApp implements DBAppInterface{
    // test getOverFlowPages
    // test insert To non-full page(main page)
    // test insert To full page with the next page not full
+   // test insertAndShift
+   // test createOverflow and insert
+   // modify parent header after insertion to overflow  page
 
 
     //low+1 == high
@@ -83,7 +86,7 @@ public class DBApp implements DBAppInterface{
            // if the page we are trying to insert in is not full
            if(!checkIfPageIsFull(mainPageVector)){
 
-               insertToPage(mainPageVector,insertKey,colNameValue,table);
+               insertToPage(mainPageVector,colNameValue,table);
 
 
            }
@@ -92,7 +95,30 @@ public class DBApp implements DBAppInterface{
                if(overFlowPagesOfMainPage.size()>1)
                {
                  Vector<Hashtable<String,Object>> overflowPageVector = overFlowPagesOfMainPage.get(0);
-//                 if()
+                 if(!checkIfPageIsFull(overflowPageVector)){
+                     insertToPage(overflowPageVector,colNameValue,table);
+                 }
+                 else{
+                     Hashtable<String,Object> tempOverflowRecord = colNameValue;
+
+                     for (int i = 0; i <overFlowPagesOfMainPage.size() ; i++) {
+                         Vector<Hashtable<String,Object>> currentPageVector = overFlowPagesOfMainPage.get(i);
+                        if(i==overFlowPagesOfMainPage.size()-1){
+                            //create new overflow page and shift to it
+                            String newOverflowName = createOverflowPage(table,currentPageVector);
+                            String overflowPath = getPagePath(newOverflowName);
+                            Vector<Hashtable<String,Object>> newOverflowVector = readVectorFromPageFile(overflowPath);
+                            insertToPageAndShift(currentPageVector,newOverflowVector,colNameValue,table);
+                            writeVectorToPageFile(currentPageVector);
+                            writeVectorToPageFile(newOverflowVector);
+                            break;
+                        }
+                         Vector<Hashtable<String,Object>> nextPageVector = overFlowPagesOfMainPage.get(i+1);
+                         tempOverflowRecord = insertToPageAndShift(currentPageVector,nextPageVector,tempOverflowRecord,table);
+                         writeVectorToPageFile(currentPageVector);
+
+                     }
+                 }
                }
                //if the page is full and doesn't have overflow pages we check if there is a page after it
                else if(pagesToInsertIn.size()>1)
@@ -112,14 +138,14 @@ public class DBApp implements DBAppInterface{
                    }
                    // if not full => insert to main page and shift overflow record to next page
                    else {
-                       insertToVector(mainPageVector,colNameValue,clusteringColumn);
-                       Hashtable<String,Object> overflowRecord=mainPageVector.lastElement();
-                       mainPageVector.remove(overflowRecord);
-                       insertToVector(nextPageVector,overflowRecord,clusteringColumn);
-
-                       modifyHeaderInsert(mainPageVector,table);
-                       modifyHeaderInsert(nextPageVector,table);
-
+//                       insertToVector(mainPageVector,colNameValue,clusteringColumn);
+//                       Hashtable<String,Object> overflowRecord=mainPageVector.lastElement();
+//                       mainPageVector.remove(overflowRecord);
+//                       insertToVector(nextPageVector,overflowRecord,clusteringColumn);
+//
+//                       modifyHeaderInsert(mainPageVector,table);
+//                       modifyHeaderInsert(nextPageVector,table);
+                       insertToPageAndShift(mainPageVector,nextPageVector,colNameValue,table);
                        writeVectorToPageFile(nextPageVector);
                        writeVectorToPageFile(mainPageVector);
 
@@ -130,15 +156,29 @@ public class DBApp implements DBAppInterface{
 
        }
 
-
-
-
-
-
    }
 
+   //returns overflow record(from second page) if the page we shift to is ful
+   //returns null if there is no overflow from the second page
+   private Hashtable<String,Object> insertToPageAndShift(Vector<Hashtable<String, Object>> toInsertIn,Vector<Hashtable<String, Object>> toShiftTo,Hashtable<String,Object> colNameValue,Table table){
+        String clusteringColumn = table.getClusteringColumn();
+        Hashtable<String,Object> overflowRecord = null;
+        insertToVector(toInsertIn,colNameValue,clusteringColumn);
+        overflowRecord = toInsertIn.lastElement();
+        toInsertIn.remove(overflowRecord);
+        insertToVector(toShiftTo,colNameValue,clusteringColumn);
+        Hashtable<String,Object> overflowFromSecondPage = null;
+       if (checkIfPageisMoreThanFull(toShiftTo)) {
+           overflowFromSecondPage = toShiftTo.lastElement();
+           toShiftTo.remove(overflowFromSecondPage);
+       }
+       modifyHeaderInsert(toInsertIn,table);
+       modifyHeaderInsert(toShiftTo,table);
 
-    private void insertToPage(Vector<Hashtable<String, Object>> mainPageVector, Comparable insertKey,Hashtable<String,Object> colNameValue, Table table) throws IOException {
+       return overflowFromSecondPage;
+   }
+
+    private void insertToPage(Vector<Hashtable<String, Object>> mainPageVector,Hashtable<String,Object> colNameValue, Table table) throws IOException {
         String clusteringColumn = table.getClusteringColumn();
         insertToVector(mainPageVector,colNameValue,clusteringColumn);
         modifyHeaderInsert(mainPageVector,table);
@@ -215,6 +255,10 @@ public class DBApp implements DBAppInterface{
 
     private static boolean checkIfPageIsFull(Vector<Hashtable<String, Object>> mainPage) {
         return mainPage.size()==maxRows+1;
+    }
+
+    private static boolean checkIfPageisMoreThanFull(Vector<Hashtable<String, Object>> mainPage){
+        return mainPage.size()>maxRows+1;
     }
 
     public void createTable(String strTableName,
