@@ -235,9 +235,44 @@ public class DBApp implements DBAppInterface{
     }
 
 
-    public void updateTable(String tableName, String clusteringKeyValue, Hashtable<String, Object> columnNameValue) throws DBAppException
-    {
-    }
+    public void updateTable(String tableName, String clusteringKeyValue, Hashtable<String, Object> columnNameValue) throws DBAppException, IOException, ClassNotFoundException {
+        Table table= getTable(tableName);
+
+        //when trying to insert into a table that doesn't exist
+        if (table  == null)
+            throw new DBAppException();
+
+        ArrayList<String>  pages = table.getPages();
+        String clusteringColumn = table.getClusteringColumn();
+
+    if(pages.isEmpty()){
+          throw new DBAppException();}
+
+            ArrayList<Vector> pagesToSearchIn = getPageToSearchIn(clusteringKeyValue,pages,table);
+
+
+            if(pagesToSearchIn.size()==0)
+                throw new DBAppException();
+
+            Vector<Hashtable<String,Object>> mainPageVector = pagesToSearchIn.get(0);
+            ArrayList<Vector<Hashtable<String,Object>>> overFlowPagesOfMainPage = getOverflowPages(mainPageVector);
+
+            //First search in main page vector
+            if(binarySearchForKey(mainPageVector,clusteringKeyValue,clusteringColumn)!=-1)
+            {
+                mainPageVector.set(binarySearchForKey(mainPageVector,clusteringKeyValue,clusteringColumn),columnNameValue);
+                return;
+            }
+            //if not found search in overflow pages
+            for (int i=0;i< overFlowPagesOfMainPage.size();i++){
+                if(binarySearchForKey(overFlowPagesOfMainPage.get(i),clusteringKeyValue,clusteringColumn)!=-1){
+                    overFlowPagesOfMainPage.get(i).set(binarySearchForKey(overFlowPagesOfMainPage.get(i),clusteringKeyValue,clusteringColumn),columnNameValue);
+                    return;
+                }
+            }
+        }
+
+
 
 
     public void deleteFromTable(String tableName, Hashtable<String, Object> columnNameValue) throws DBAppException{
@@ -255,7 +290,7 @@ public class DBApp implements DBAppInterface{
    private boolean pagesContainKey(ArrayList<Vector<Hashtable<String,Object>>> pages,Comparable key,String clusteringColumn){
        for (Vector<Hashtable<String, Object>> page :
                pages) {
-           if (binarySearchForKey(page,key,clusteringColumn))
+           if (binarySearchForKey(page,key,clusteringColumn)!= -1)
                return true;
        }
        return false;
@@ -694,18 +729,18 @@ public class DBApp implements DBAppInterface{
          return retVector;
         }
 
-    public static boolean binarySearchForKey (Vector<Hashtable<String,Object>> vector, Comparable searchKey,String clustrColumn){
+    public static int binarySearchForKey (Vector<Hashtable<String,Object>> vector, Comparable searchKey,String clustrColumn){
         return binarySearchForKey(vector,searchKey,0,vector.size(),clustrColumn);
     }
 
 
-    public static boolean binarySearchForKey(Vector<Hashtable<String,Object>> vector, Comparable searchKey, int low, int high, String clustrColumn) {
+    public static int binarySearchForKey(Vector<Hashtable<String,Object>> vector, Comparable searchKey, int low, int high, String clustrColumn) {
         while (low <= high)
         {
             int mid = (low + high)/2;
             Comparable midKey =(Comparable) vector.get(mid).get(clustrColumn);
             if (searchKey.compareTo(midKey)==0) {
-                return true;
+                return mid;
             }
             else if (searchKey.compareTo(midKey)<0) {
                 high = mid - 1;
@@ -716,7 +751,7 @@ public class DBApp implements DBAppInterface{
         }
 
         // target doesn't exist in the array
-        return false;
+        return -1;
     }
     public static int binarySearchForInsertIndex(Vector<Hashtable<String,Object>> vector, Comparable insertKey, String clustrColumn) {
       return  binarySearchForInsertIndex(vector,insertKey,0,vector.size(),clustrColumn);
@@ -751,7 +786,43 @@ public class DBApp implements DBAppInterface{
                 return low;
     }
 
+    public static ArrayList<Vector> getPageToSearchIn(String clusteringKeyValue ,ArrayList<String>  pages ,Table table) throws IOException, ClassNotFoundException {
 
+        ArrayList<Vector> retArray =  new ArrayList<>();
+        for (int i = 0;i<pages.size();i++) {
+            String page = pages.get(i);
+            String pagePath=getPagePath(page);
+            Vector<Hashtable<String,Object>> pageVector= readVectorFromPageFile(pagePath);
+
+            if(i==0 && !checkKeyGreaterThanMin(pageVector,clusteringKeyValue,table) )
+            {
+
+                retArray.add(pageVector);
+
+                break;
+            }
+
+            if(checkKeyGreaterThanMin(pageVector,clusteringKeyValue,table)){
+                retArray.add(pageVector);
+
+                break;
+            }
+        }
+
+        //check if exists next page and add it s
+        return retArray;
+
+    }
+    public static boolean checkKeyGreaterThanMin(Vector<Hashtable<String,Object>> pageVector,String clusteringKeyValue,Table table){
+
+        String clusteringColumn =  table.getClusteringColumn();
+        Hashtable<String,Object> header = pageVector.get(0);
+        Comparable clusteringKey =(Comparable) clusteringKeyValue;
+        Comparable minKey = (Comparable) header.get("minKey");
+        boolean retBoolean = (minKey.compareTo(clusteringColumn)<=0 );
+        return retBoolean;
+
+    }
 
     public static void main(String[] args) throws DBAppException, IOException, ClassNotFoundException {
         String strTableName = "Student";
