@@ -1,9 +1,11 @@
 import java.io.*;
+import java.nio.file.*;
 import java.util.*;
 
 public class DBApp implements DBAppInterface{
 
     //page name
+    //update
     //naming conventions for page : [tablename][page_number].class
     // page header
     // Hashtable :: Key:overflowPageName , Value : "[].class"
@@ -274,10 +276,156 @@ public class DBApp implements DBAppInterface{
 
 
 
+    //empty page -> delete it
+    // empty page with overflow -> shift
 
-    public void deleteFromTable(String tableName, Hashtable<String, Object> columnNameValue) throws DBAppException{
+    public void deleteFromTable(String tableName, Hashtable<String, Object> columnNameValue) throws DBAppException, IOException, ClassNotFoundException {
+        Table table = getTable(tableName);
+        if(table==null){
+            throw new DBAppException();
+        }
+        ArrayList<String> pages= table.getPages();
+
+        //correct or doesn't count overflow?
+        if(pages.isEmpty()){
+            throw new DBAppException();
+        }
+        //looping on pages
+        for (int i = 0; i <pages.size() ; i++) {
+            String pagePath=getPagePath(pages.get(i));
+
+            Vector<Hashtable<String,Object>> pageVector =  readVectorFromPageFile(pagePath);
+
+            ArrayList<Vector<Hashtable<String,Object>>>overflowPages=getOverflowPages(pageVector);
+
+            deleteAllRecordsFromPage(pageVector,columnNameValue);
+            deleteAllRecordsFromOverflowPages(overflowPages,columnNameValue);
+
+            if(checkIfPageIsEmpty(pageVector)){
+                deletePage(pages.get(i),table);
+            }
+            //need to check on empty overflow
+
+
+
+
+
+
+
+
+
+
+        }
 
     }
+
+
+    public static boolean checkIfDelete(Hashtable<String,Object> record,Hashtable<String,Object>deleteCondition){
+
+        return false;
+    }
+
+    public static void deleteRecord(Vector<Hashtable<String,Object>> pageVector,Hashtable<String,Object> record){
+        pageVector.remove(record);
+    }
+
+    public static void deleteEmptyPage(Vector<Hashtable<String,Object>> pageVector,ArrayList<Vector<Hashtable<String,Object>>> overFlowPages){
+        //switch vectors and change header
+        // switch overflowpages
+        if(checkIfPageIsEmpty(pageVector)){
+
+        }
+    }
+
+    public static void deletePage(String pageName,Table table) throws IOException, ClassNotFoundException {
+        String pagePath=getPagePath(pageName);
+        Path path= FileSystems.getDefault().getPath(pagePath);
+        Vector<Hashtable<String,Object>> pageVector =  readVectorFromPageFile(pagePath);
+
+        ArrayList<Vector<Hashtable<String,Object>>>overflowPages=getOverflowPages(pageVector);
+
+        try {
+            Files.deleteIfExists(path);
+        } catch (NoSuchFileException x) {
+            System.err.format("%s: no such" + " file or directory%n", pagePath);
+        } catch (DirectoryNotEmptyException x) {
+            System.err.format("%s not empty%n", pagePath);
+        } catch (IOException x) {
+            System.err.println(x);
+        }
+
+        table.removePage(pageName);
+
+    }
+
+
+
+    public static void deleteAllRecordsFromPage(Vector<Hashtable<String,Object>>pageVector,Hashtable<String,Object>deleteCondition){
+        for (int i = 1; i <pageVector.size() ; i++) {
+            Hashtable<String,Object> record = pageVector.get(i);
+            if(checkIfDelete(record,deleteCondition)){
+                deleteRecord(pageVector,record);
+            }
+
+        }
+    }
+
+    public static void deleteAllRecordsFromOverflowPages(ArrayList<Vector<Hashtable<String,Object>>>overFlowArray,Hashtable<String,Object>deleteCondition){
+        for (int i = 0; i <overFlowArray.size() ; i++) {
+            Vector<Hashtable<String, Object>> overflowPageVector = overFlowArray.get(i);
+            deleteAllRecordsFromPage(overflowPageVector,deleteCondition);
+        }
+    }
+
+    public static boolean checkIfPageIsEmpty(Vector<Hashtable<String,Object>> pageVector){
+        if(pageVector.size()==1){
+            return true;
+        }
+        return false;
+    }
+
+
+
+
+
+
+
+
+
+
+    public static void modifyHeaderdelete(Vector<Hashtable<String,Object>> pageVector,Table table) {
+        Hashtable<String, Object> header = (Hashtable<String, Object>) pageVector.get(0);
+        String clusteringColumn = table.getClusteringColumn();
+        Comparable maxKeyHeader = (Comparable) header.get("maxKey");
+        Comparable minKeyHeader = (Comparable) header.get("minKey");
+        Comparable maxKey = (Comparable) pageVector.lastElement().get(clusteringColumn);
+        Comparable minKey = (Comparable) pageVector.get(1).get(clusteringColumn);
+
+        if ( maxKeyHeader==null || minKeyHeader==null ){
+            header.put("maxKey",maxKey);
+            header.put("minKey",minKey);
+        }
+        else
+        {
+            if(maxKeyHeader.compareTo(maxKey)<0){
+                header.put("maxKey",maxKey);
+            }
+            if(minKeyHeader.compareTo(minKey)>0){
+                header.put("minKey",minKey);
+            }
+        }
+    }
+
+    public static void  deletePage(Table table,String pagePath) throws IOException {
+
+
+
+
+
+    }
+
+
+
 
     public Iterator  selectFromTable(SQLTerm[] sqlTerms, String[] arrayOperators) throws DBAppException{
 
@@ -823,6 +971,7 @@ public class DBApp implements DBAppInterface{
         return retBoolean;
 
     }
+
 
     public static void main(String[] args) throws DBAppException, IOException, ClassNotFoundException {
         String strTableName = "Student";
