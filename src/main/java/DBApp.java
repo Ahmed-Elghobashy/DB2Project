@@ -52,6 +52,9 @@ public class DBApp implements DBAppInterface{
 
    public void insertIntoTable(String tableName, Hashtable<String, Object> colNameValue) throws DBAppException, IOException, ClassNotFoundException {
 
+        if(checkInputs(tableName,colNameValue)==false){
+            throw new DBAppException();
+        }
         Table table= getTable(tableName);
 
         //when trying to insert into a table that doesn't exist
@@ -139,6 +142,56 @@ public class DBApp implements DBAppInterface{
 
    }
 
+
+    public static boolean checkInputs (String tableName,Hashtable <String,Object> colNameValue) throws IOException {
+        Vector<String[]> data=null;
+        String row;
+        File csvFile = new File(metadataCSVPath);
+        if (csvFile.isFile())
+        {
+            BufferedReader csvReader = new BufferedReader(new FileReader(metadataCSVPath));
+            while (( row = csvReader.readLine()) != null) {
+                String[] temp = row.split(",");
+                 data.add(temp);
+            }
+            csvReader.close();
+            boolean primaryExists=false;
+            Set<String> keys = colNameValue.keySet();
+            String[]temp2=null;
+            for(String key: keys){
+                for (int i = 0; i <data.size()-1 ; i++) {
+                    temp2=data.get(i);
+                    if(temp2[3].equals("true"))
+                    {
+                        primaryExists=true;
+                    }
+                    String type=temp2[2];
+                    if(temp2[0].equals(tableName)&&temp2[1].equals(key))
+                    {
+                        switch (type){
+                            case "Integer":if(!(colNameValue.get(key) instanceof Integer))
+                                return false;
+                            case "Date":if(!(colNameValue.get(key) instanceof Date))
+                                return false;
+                            case "String":if(!(colNameValue.get(key) instanceof String))
+                                return false;
+                            case "Double":if(!(colNameValue.get(key) instanceof Double))
+                                return false;
+                            default:return false;
+
+                        }
+                    }
+
+
+                }
+
+            }
+            if(primaryExists=false)
+                return false;
+            return true;
+        }
+     return false;
+    }
 
     private void insertToPage(Vector<Hashtable<String, Object>> mainPageVector, Comparable insertKey,Hashtable<String,Object> colNameValue, Table table) throws IOException {
         String clusteringColumn = table.getClusteringColumn();
@@ -239,7 +292,9 @@ public class DBApp implements DBAppInterface{
 
     public void updateTable(String tableName, String clusteringKeyValue, Hashtable<String, Object> columnNameValue) throws DBAppException, IOException, ClassNotFoundException {
         Table table= getTable(tableName);
-
+        if(checkInputs(tableName,columnNameValue)==false){
+            throw new DBAppException();
+        }
         //when trying to insert into a table that doesn't exist
         if (table  == null)
             throw new DBAppException();
@@ -971,6 +1026,7 @@ public class DBApp implements DBAppInterface{
         return retBoolean;
 
     }
+
 
 
     public static void main(String[] args) throws DBAppException, IOException, ClassNotFoundException {
