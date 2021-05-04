@@ -1,5 +1,8 @@
 import java.io.*;
 import java.nio.file.*;
+import java.text.DateFormat;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
 import java.util.*;
 
 public class DBApp implements DBAppInterface{
@@ -50,7 +53,7 @@ public class DBApp implements DBAppInterface{
 
     }
 
-   public void insertIntoTable(String tableName, Hashtable<String, Object> colNameValue) throws DBAppException, IOException, ClassNotFoundException {
+   public void insertIntoTable(String tableName, Hashtable<String, Object> colNameValue) throws DBAppException, IOException, ClassNotFoundException, ParseException {
 
         if(checkInputs(tableName,colNameValue)==false){
             throw new DBAppException();
@@ -143,7 +146,7 @@ public class DBApp implements DBAppInterface{
    }
 
 
-    public static boolean checkInputs (String tableName,Hashtable <String,Object> colNameValue) throws IOException {
+    public static boolean checkInputs (String tableName,Hashtable <String,Object> colNameValue) throws IOException, ParseException {
         Vector<String[]> data=null;
         String row;
         File csvFile = new File(metadataCSVPath);
@@ -173,9 +176,20 @@ public class DBApp implements DBAppInterface{
                         switch (type){
                             case "Integer":if(!(colNameValue.get(key) instanceof Integer)||((Integer) colNameValue.get(key)).compareTo(Integer.parseInt(temp2[5]))<0||((Integer) colNameValue.get(key)).compareTo(Integer.parseInt(temp2[6]))>0)
                                 return false;
-                            case "Date":if(!(colNameValue.get(key) instanceof Date))
+                            case "Date":{
+                                SimpleDateFormat sdFormat = new SimpleDateFormat("yyyy-mm-dd");
+                                String max=temp2[6];
+                                String min=temp2[5];
+                                Date d =(Date)colNameValue.get(key);
+                                DateFormat dateFormat=new SimpleDateFormat("yyyy-mm-dd");
+                                String str= dateFormat.format(d);
+                                Date dmin=new SimpleDateFormat("yyyy-mm-dd").parse(min);
+                                Date dmax=new SimpleDateFormat("yyyy-mm-dd").parse(max);
+                                Date d1= new SimpleDateFormat(("yyyy-mm-dd")).parse(str);
+                                if(!(colNameValue.get(key) instanceof Date)||(d1.compareTo(dmin))<0||d1.compareTo(dmax)>0)
 
                                 return false;
+                            }
                             case "String":if(!(colNameValue.get(key) instanceof String)||((String) colNameValue.get(key)).compareTo(temp2[5])<0||((String) colNameValue.get(key)).compareTo(temp2[6])>0)
                                 return false;
                             case "Double":if(!(colNameValue.get(key) instanceof Double)||((Double) colNameValue.get(key)).compareTo(Double.parseDouble(temp2[5]))<0||((Double) colNameValue.get(key)).compareTo(Double.parseDouble(temp2[6]))>0)
@@ -293,7 +307,7 @@ public class DBApp implements DBAppInterface{
     }
 
 
-    public void updateTable(String tableName, String clusteringKeyValue, Hashtable<String, Object> columnNameValue) throws DBAppException, IOException, ClassNotFoundException {
+    public void updateTable(String tableName, String clusteringKeyValue, Hashtable<String, Object> columnNameValue) throws DBAppException, IOException, ClassNotFoundException, ParseException {
         Table table= getTable(tableName);
         if(checkInputs(tableName,columnNameValue)==false){
             throw new DBAppException();
