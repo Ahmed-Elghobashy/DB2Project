@@ -1,6 +1,9 @@
 import java.io.*;
 import java.lang.reflect.Array;
 import java.nio.file.*;
+import java.text.DateFormat;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
 import java.util.*;
 
 public class DBApp implements DBAppInterface{
@@ -51,8 +54,11 @@ public class DBApp implements DBAppInterface{
 
     }
 
-   public void insertIntoTable(String tableName, Hashtable<String, Object> colNameValue) throws DBAppException, IOException, ClassNotFoundException {
+   public void insertIntoTable(String tableName, Hashtable<String, Object> colNameValue) throws DBAppException, IOException, ClassNotFoundException, ParseException {
 
+        if(checkInputs(tableName,colNameValue)==false){
+            throw new DBAppException();
+        }
         Table table= getTable(tableName);
 
         //when trying to insert into a table that doesn't exist
@@ -140,6 +146,70 @@ public class DBApp implements DBAppInterface{
 
    }
 
+
+    public static boolean checkInputs (String tableName,Hashtable <String,Object> colNameValue) throws IOException, ParseException {
+        Vector<String[]> data=null;
+        String row;
+        File csvFile = new File(metadataCSVPath);
+        if (csvFile.isFile())
+        {
+            BufferedReader csvReader = new BufferedReader(new FileReader(metadataCSVPath));
+            while (( row = csvReader.readLine()) != null) {
+                String[] temp = row.split(",");
+                 data.add(temp);
+            }
+            csvReader.close();
+            boolean primaryExists=false;
+            Set<String> keys = colNameValue.keySet();
+            String[]temp2=null;
+            for(String key: keys){
+                for (int i = 0; i <data.size()-1 ; i++) {
+                    temp2=data.get(i);
+                    if(temp2[3].equals("true"))
+                    {
+                        primaryExists=true;
+                    }
+                    String type=temp2[2];
+
+
+                    if(temp2[0].equals(tableName)&&temp2[1].equals(key))
+                    {
+                        switch (type){
+                            case "Integer":if(!(colNameValue.get(key) instanceof Integer)||((Integer) colNameValue.get(key)).compareTo(Integer.parseInt(temp2[5]))<0||((Integer) colNameValue.get(key)).compareTo(Integer.parseInt(temp2[6]))>0)
+                                return false;
+                            case "Date":{
+                                SimpleDateFormat sdFormat = new SimpleDateFormat("yyyy-mm-dd");
+                                String max=temp2[6];
+                                String min=temp2[5];
+                                Date d =(Date)colNameValue.get(key);
+                                DateFormat dateFormat=new SimpleDateFormat("yyyy-mm-dd");
+                                String str= dateFormat.format(d);
+                                Date dmin=new SimpleDateFormat("yyyy-mm-dd").parse(min);
+                                Date dmax=new SimpleDateFormat("yyyy-mm-dd").parse(max);
+                                Date d1= new SimpleDateFormat(("yyyy-mm-dd")).parse(str);
+                                if(!(colNameValue.get(key) instanceof Date)||(d1.compareTo(dmin))<0||d1.compareTo(dmax)>0)
+
+                                return false;
+                            }
+                            case "String":if(!(colNameValue.get(key) instanceof String)||((String) colNameValue.get(key)).compareTo(temp2[5])<0||((String) colNameValue.get(key)).compareTo(temp2[6])>0)
+                                return false;
+                            case "Double":if(!(colNameValue.get(key) instanceof Double)||((Double) colNameValue.get(key)).compareTo(Double.parseDouble(temp2[5]))<0||((Double) colNameValue.get(key)).compareTo(Double.parseDouble(temp2[6]))>0)
+                                return false;
+                            default:return false;
+
+                        }
+                    }
+
+
+                }
+
+            }
+            if(primaryExists=false)
+                return false;
+            return true;
+        }
+     return false;
+    }
 
     private void insertToPage(Vector<Hashtable<String, Object>> mainPageVector, Comparable insertKey,Hashtable<String,Object> colNameValue, Table table) throws IOException {
         String clusteringColumn = table.getClusteringColumn();
@@ -238,9 +308,11 @@ public class DBApp implements DBAppInterface{
     }
 
 
-    public void updateTable(String tableName, String clusteringKeyValue, Hashtable<String, Object> columnNameValue) throws DBAppException, IOException, ClassNotFoundException {
+    public void updateTable(String tableName, String clusteringKeyValue, Hashtable<String, Object> columnNameValue) throws DBAppException, IOException, ClassNotFoundException, ParseException {
         Table table= getTable(tableName);
-
+        if(checkInputs(tableName,columnNameValue)==false){
+            throw new DBAppException();
+        }
         //when trying to insert into a table that doesn't exist
         if (table  == null)
             throw new DBAppException();
@@ -1035,6 +1107,7 @@ public class DBApp implements DBAppInterface{
         return retBoolean;
 
     }
+
 
 
     public static void main(String[] args) throws DBAppException, IOException, ClassNotFoundException {
