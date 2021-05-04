@@ -76,12 +76,10 @@ public class DBApp implements DBAppInterface{
 
 
    public void insertIntoTable(String tableName, Hashtable<String, Object> colNameValue) throws DBAppException, IOException, ClassNotFoundException {
-       if(checkInputs(tableName,colNameValue)==false){
-           throw new DBAppException();
-       }
-        if(checkInputs(tableName,colNameValue)==false){
-            throw new DBAppException();
-        }
+//       if(checkInputs(tableName,colNameValue)==false){
+//           throw new DBAppException();
+//       }
+
         Table table= getTable(tableName);
 
         //when trying to insert into a table that doesn't exist
@@ -310,7 +308,7 @@ public class DBApp implements DBAppInterface{
      return false;
     }
 
-    private void insertToPage(Vector<Hashtable<String, Object>> mainPageVector, Comparable insertKey,Hashtable<String,Object> colNameValue, Table table) throws IOException {
+    private void insertToPage(Vector<Hashtable<String, Object>> mainPageVector,Hashtable<String,Object> colNameValue, Table table) throws IOException {
         String clusteringColumn = table.getClusteringColumn();
         insertToVector(mainPageVector,colNameValue,clusteringColumn);
         modifyHeaderInsert(mainPageVector,table);
@@ -416,9 +414,9 @@ public class DBApp implements DBAppInterface{
 
     public void updateTable(String tableName, String clusteringKeyValue, Hashtable<String, Object> columnNameValue) throws DBAppException, IOException, ClassNotFoundException, ParseException {
         Table table= getTable(tableName);
-        if(checkInputs(tableName,columnNameValue)==false){
-            throw new DBAppException();
-        }
+//        if(checkInputs(tableName,columnNameValue)==false){
+//            throw new DBAppException();
+//        }
         //when trying to insert into a table that doesn't exist
         if (table  == null)
             throw new DBAppException();
