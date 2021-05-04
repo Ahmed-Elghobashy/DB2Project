@@ -166,16 +166,19 @@ public class DBApp implements DBAppInterface{
                         primaryExists=true;
                     }
                     String type=temp2[2];
+
+
                     if(temp2[0].equals(tableName)&&temp2[1].equals(key))
                     {
                         switch (type){
-                            case "Integer":if(!(colNameValue.get(key) instanceof Integer))
+                            case "Integer":if(!(colNameValue.get(key) instanceof Integer)||((Integer) colNameValue.get(key)).compareTo(Integer.parseInt(temp2[5]))<0||((Integer) colNameValue.get(key)).compareTo(Integer.parseInt(temp2[6]))>0)
                                 return false;
                             case "Date":if(!(colNameValue.get(key) instanceof Date))
+
                                 return false;
-                            case "String":if(!(colNameValue.get(key) instanceof String))
+                            case "String":if(!(colNameValue.get(key) instanceof String)||((String) colNameValue.get(key)).compareTo(temp2[5])<0||((String) colNameValue.get(key)).compareTo(temp2[6])>0)
                                 return false;
-                            case "Double":if(!(colNameValue.get(key) instanceof Double))
+                            case "Double":if(!(colNameValue.get(key) instanceof Double)||((Double) colNameValue.get(key)).compareTo(Double.parseDouble(temp2[5]))<0||((Double) colNameValue.get(key)).compareTo(Double.parseDouble(temp2[6]))>0)
                                 return false;
                             default:return false;
 
