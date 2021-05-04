@@ -1,9 +1,17 @@
 import java.io.*;
+import java.nio.file.*;
+import java.text.DateFormat;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.text.DateFormat;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
 import java.util.*;
 
 public class DBApp implements DBAppInterface{
 
     //page name
+    //update
     //naming conventions for page : [tablename][page_number].class
     // page header
     // Hashtable :: Key:overflowPageName , Value : "[].class"
@@ -56,12 +64,23 @@ public class DBApp implements DBAppInterface{
         }
         setConfig();
 
+        try {
+            intializeTables();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        setConfig();
     }
 
 
 
-    public void insertIntoTable(String tableName, Hashtable<String, Object> colNameValue) throws DBAppException, IOException, ClassNotFoundException {
-
+   public void insertIntoTable(String tableName, Hashtable<String, Object> colNameValue) throws DBAppException, IOException, ClassNotFoundException {
+       if(checkInputs(tableName,colNameValue)==false){
+           throw new DBAppException();
+       }
+        if(checkInputs(tableName,colNameValue)==false){
+            throw new DBAppException();
+        }
         Table table= getTable(tableName);
 
         //when trying to insert into a table that doesn't exist
@@ -184,10 +203,9 @@ public class DBApp implements DBAppInterface{
        }
 
    }
-
-   //returns overflow record(from second page) if the page we shift to is ful
-   //returns null if there is no overflow from the second page
-   private Hashtable<String,Object> insertToPageAndShift(Vector<Hashtable<String, Object>> toInsertIn,Vector<Hashtable<String, Object>> toShiftTo,Hashtable<String,Object> colNameValue,Table table){
+    //returns overflow record(from second page) if the page we shift to is ful
+    //returns null if there is no overflow from the second page
+    private Hashtable<String,Object> insertToPageAndShift(Vector<Hashtable<String, Object>> toInsertIn,Vector<Hashtable<String, Object>> toShiftTo,Hashtable<String,Object> colNameValue,Table table){
         String clusteringColumn = table.getClusteringColumn();
         Hashtable<String,Object> overflowRecord = null;
         insertToVector(toInsertIn,colNameValue,clusteringColumn);
@@ -195,17 +213,103 @@ public class DBApp implements DBAppInterface{
         toInsertIn.remove(overflowRecord);
         insertToVector(toShiftTo,colNameValue,clusteringColumn);
         Hashtable<String,Object> overflowFromSecondPage = null;
-       if (checkIfPageisMoreThanFull(toShiftTo)) {
-           overflowFromSecondPage = toShiftTo.lastElement();
-           toShiftTo.remove(overflowFromSecondPage);
-       }
-       modifyHeaderInsert(toInsertIn,table);
-       modifyHeaderInsert(toShiftTo,table);
+        if (checkIfPageisMoreThanFull(toShiftTo)) {
+            overflowFromSecondPage = toShiftTo.lastElement();
+            toShiftTo.remove(overflowFromSecondPage);
+        }
+        modifyHeaderInsert(toInsertIn,table);
+        modifyHeaderInsert(toShiftTo,table);
 
-       return overflowFromSecondPage;
-   }
+        return overflowFromSecondPage;
+    }
+
+//   //returns overflow record(from second page) if the page we shift to is ful
+//   //returns null if there is no overflow from the second page
+//   private Hashtable<String,Object> insertToPageAndShift(Vector<Hashtable<String, Object>> toInsertIn,Vector<Hashtable<String, Object>> toShiftTo,Hashtable<String,Object> colNameValue,Table table){
+//        String clusteringColumn = table.getClusteringColumn();
+//        Hashtable<String,Object> overflowRecord = null;
+//        insertToVector(toInsertIn,colNameValue,clusteringColumn);
+//        overflowRecord = toInsertIn.lastElement();
+//        toInsertIn.remove(overflowRecord);
+//        insertToVector(toShiftTo,colNameValue,clusteringColumn);
+//        Hashtable<String,Object> overflowFromSecondPage = null;
+//       if (checkIfPageisMoreThanFull(toShiftTo)) {
+//           overflowFromSecondPage = toShiftTo.lastElement();
+//           toShiftTo.remove(overflowFromSecondPage);
+//       }
+//       modifyHeaderInsert(toInsertIn,table);
+//       modifyHeaderInsert(toShiftTo,table);
+//
+//       return overflowFromSecondPage;
+//   }
 
     private void insertToPage(Vector<Hashtable<String, Object>> mainPageVector,Hashtable<String,Object> colNameValue, Table table) throws IOException {
+
+    public static boolean checkInputs (String tableName,Hashtable <String,Object> colNameValue) throws IOException, ParseException {
+        Vector<String[]> data=null;
+        String row;
+        File csvFile = new File(metadataCSVPath);
+        if (csvFile.isFile())
+        {
+            BufferedReader csvReader = new BufferedReader(new FileReader(metadataCSVPath));
+            while (( row = csvReader.readLine()) != null) {
+                String[] temp = row.split(",");
+                 data.add(temp);
+            }
+            csvReader.close();
+            boolean primaryExists=false;
+            Set<String> keys = colNameValue.keySet();
+            String[]temp2=null;
+            for(String key: keys){
+                for (int i = 0; i <data.size()-1 ; i++) {
+                    temp2=data.get(i);
+                    if(temp2[3].equals("true"))
+                    {
+                        primaryExists=true;
+                    }
+                    String type=temp2[2];
+
+
+                    if(temp2[0].equals(tableName)&&temp2[1].equals(key))
+                    {
+                        switch (type){
+                            case "Integer":if(!(colNameValue.get(key) instanceof Integer)||((Integer) colNameValue.get(key)).compareTo(Integer.parseInt(temp2[5]))<0||((Integer) colNameValue.get(key)).compareTo(Integer.parseInt(temp2[6]))>0)
+                                return false;
+                            case "Date":{
+                                SimpleDateFormat sdFormat = new SimpleDateFormat("yyyy-mm-dd");
+                                String max=temp2[6];
+                                String min=temp2[5];
+                                Date d =(Date)colNameValue.get(key);
+                                DateFormat dateFormat=new SimpleDateFormat("yyyy-mm-dd");
+                                String str= dateFormat.format(d);
+                                Date dmin=new SimpleDateFormat("yyyy-mm-dd").parse(min);
+                                Date dmax=new SimpleDateFormat("yyyy-mm-dd").parse(max);
+                                Date d1= new SimpleDateFormat(("yyyy-mm-dd")).parse(str);
+                                if(!(colNameValue.get(key) instanceof Date)||(d1.compareTo(dmin))<0||d1.compareTo(dmax)>0)
+
+                                return false;
+                            }
+                            case "String":if(!(colNameValue.get(key) instanceof String)||((String) colNameValue.get(key)).compareTo(temp2[5])<0||((String) colNameValue.get(key)).compareTo(temp2[6])>0)
+                                return false;
+                            case "Double":if(!(colNameValue.get(key) instanceof Double)||((Double) colNameValue.get(key)).compareTo(Double.parseDouble(temp2[5]))<0||((Double) colNameValue.get(key)).compareTo(Double.parseDouble(temp2[6]))>0)
+                                return false;
+                            default:return false;
+
+                        }
+                    }
+
+
+                }
+
+            }
+            if(primaryExists=false)
+                return false;
+            return true;
+        }
+     return false;
+    }
+
+    private void insertToPage(Vector<Hashtable<String, Object>> mainPageVector, Comparable insertKey,Hashtable<String,Object> colNameValue, Table table) throws IOException {
         String clusteringColumn = table.getClusteringColumn();
         insertToVector(mainPageVector,colNameValue,clusteringColumn);
         modifyHeaderInsert(mainPageVector,table);
@@ -227,6 +331,7 @@ public class DBApp implements DBAppInterface{
         if(indexToInsertIn>=mainPageVector.size())
         {
             mainPageVector.add(colNameValue);
+            return;
             return;
         }
         //object at the index that we should insert at
@@ -284,7 +389,6 @@ public class DBApp implements DBAppInterface{
     private static boolean checkIfPageIsFull(Vector<Hashtable<String, Object>> mainPage) {
         return mainPage.size()>=maxRows+1;
     }
-
     private static boolean checkIfPageisMoreThanFull(Vector<Hashtable<String, Object>> mainPage){
         return mainPage.size()>maxRows+1;
     }
@@ -298,6 +402,7 @@ public class DBApp implements DBAppInterface{
         writeCsvTable( strTableName,strClusteringKeyColumn, htblColNameType,htblColNameMin, htblColNameMax);
         intializeTables();
 
+        intializeTables();
 
     }
 
@@ -309,9 +414,11 @@ public class DBApp implements DBAppInterface{
     }
 
 
-    public void updateTable(String tableName, String clusteringKeyValue, Hashtable<String, Object> columnNameValue) throws DBAppException, IOException, ClassNotFoundException {
+    public void updateTable(String tableName, String clusteringKeyValue, Hashtable<String, Object> columnNameValue) throws DBAppException, IOException, ClassNotFoundException, ParseException {
         Table table= getTable(tableName);
-
+        if(checkInputs(tableName,columnNameValue)==false){
+            throw new DBAppException();
+        }
         //when trying to insert into a table that doesn't exist
         if (table  == null)
             throw new DBAppException();
@@ -348,10 +455,155 @@ public class DBApp implements DBAppInterface{
 
 
 
+    //empty page -> delete it
+    // empty page with overflow -> shift
 
-    public void deleteFromTable(String tableName, Hashtable<String, Object> columnNameValue) throws DBAppException{
+    public void deleteFromTable(String tableName, Hashtable<String, Object> columnNameValue) throws DBAppException, IOException, ClassNotFoundException {
+        Table table = getTable(tableName);
+        if(table==null){
+            throw new DBAppException();
+        }
+        ArrayList<String> pages= table.getPages();
+
+        //correct or doesn't count overflow?
+        if(pages.isEmpty()){
+            throw new DBAppException();
+        }
+        //looping on pages
+        for (int i = 0; i <pages.size() ; i++) {
+            String pagePath=getPagePath(pages.get(i));
+
+            Vector<Hashtable<String,Object>> pageVector =  readVectorFromPageFile(pagePath);
+
+            ArrayList<Vector<Hashtable<String,Object>>>overflowPages=getOverflowPages(pageVector);
+
+            deleteAllRecordsFromPage(pageVector,columnNameValue);
+            deleteAllRecordsFromOverflowPages(overflowPages,columnNameValue);
+
+            if(checkIfPageIsEmpty(pageVector)){
+                deletePage(pages.get(i),table);
+            }
+            //need to check on empty overflow
+
+
+
+
+
+
+
+
+
+
+        }
 
     }
+
+
+    public static boolean checkIfDelete(Hashtable<String,Object> record,Hashtable<String,Object>deleteCondition){
+
+
+        return false;
+    }
+    public static void deleteRecord(Vector<Hashtable<String,Object>> pageVector,Hashtable<String,Object> record){
+        pageVector.remove(record);
+
+    public static void deleteEmptyPage(Vector<Hashtable<String,Object>> pageVector,ArrayList<Vector<Hashtable<String,Object>>> overFlowPages){
+        //switch vectors and change header
+        // switch overflowpages
+        if(checkIfPageIsEmpty(pageVector)){
+
+        }
+    }
+
+    public static void deletePage(String pageName,Table table) throws IOException, ClassNotFoundException {
+        String pagePath=getPagePath(pageName);
+        Path path= FileSystems.getDefault().getPath(pagePath);
+        Vector<Hashtable<String,Object>> pageVector =  readVectorFromPageFile(pagePath);
+
+        ArrayList<Vector<Hashtable<String,Object>>>overflowPages=getOverflowPages(pageVector);
+
+        try {
+            Files.deleteIfExists(path);
+        } catch (NoSuchFileException x) {
+            System.err.format("%s: no such" + " file or directory%n", pagePath);
+        } catch (DirectoryNotEmptyException x) {
+            System.err.format("%s not empty%n", pagePath);
+        } catch (IOException x) {
+            System.err.println(x);
+        }
+
+        table.removePage(pageName);
+
+    }
+
+
+
+    public static void deleteAllRecordsFromPage(Vector<Hashtable<String,Object>>pageVector,Hashtable<String,Object>deleteCondition){
+        for (int i = 1; i <pageVector.size() ; i++) {
+            Hashtable<String,Object> record = pageVector.get(i);
+            if(checkIfDelete(record,deleteCondition)){
+                deleteRecord(pageVector,record);
+            }
+
+        }
+    }
+
+    public static void deleteAllRecordsFromOverflowPages(ArrayList<Vector<Hashtable<String,Object>>>overFlowArray,Hashtable<String,Object>deleteCondition){
+        for (int i = 0; i <overFlowArray.size() ; i++) {
+            Vector<Hashtable<String, Object>> overflowPageVector = overFlowArray.get(i);
+            deleteAllRecordsFromPage(overflowPageVector,deleteCondition);
+        }
+    }
+
+    public static boolean checkIfPageIsEmpty(Vector<Hashtable<String,Object>> pageVector){
+        if(pageVector.size()==1){
+            return true;
+        }
+        return false;
+    }
+
+
+
+
+
+
+
+
+
+
+    public static void modifyHeaderdelete(Vector<Hashtable<String,Object>> pageVector,Table table) {
+        Hashtable<String, Object> header = (Hashtable<String, Object>) pageVector.get(0);
+        String clusteringColumn = table.getClusteringColumn();
+        Comparable maxKeyHeader = (Comparable) header.get("maxKey");
+        Comparable minKeyHeader = (Comparable) header.get("minKey");
+        Comparable maxKey = (Comparable) pageVector.lastElement().get(clusteringColumn);
+        Comparable minKey = (Comparable) pageVector.get(1).get(clusteringColumn);
+
+        if ( maxKeyHeader==null || minKeyHeader==null ){
+            header.put("maxKey",maxKey);
+            header.put("minKey",minKey);
+        }
+        else
+        {
+            if(maxKeyHeader.compareTo(maxKey)<0){
+                header.put("maxKey",maxKey);
+            }
+            if(minKeyHeader.compareTo(minKey)>0){
+                header.put("minKey",minKey);
+            }
+        }
+    }
+
+    public static void  deletePage(Table table,String pagePath) throws IOException {
+
+
+
+
+
+    }
+
+
+
 
     public Iterator  selectFromTable(SQLTerm[] sqlTerms, String[] arrayOperators) throws DBAppException{
 
@@ -945,6 +1197,8 @@ public class DBApp implements DBAppInterface{
         return retBoolean;
 
     }
+
+
 
     public static void main(String[] args) throws DBAppException, IOException, ClassNotFoundException {
         String strTableName = "Student";

@@ -24,6 +24,10 @@ public class Table {
         pages.add(pageName);
     }
 
+    public void removePage(String page){
+        pages.remove(page);
+    }
+
     public ArrayList<String> getPages(){
         return pages;
     }
