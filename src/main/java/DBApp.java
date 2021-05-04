@@ -320,13 +320,15 @@ public class DBApp implements DBAppInterface{
         String clusteringColumn = table.getClusteringColumn();
 
     if(pages.isEmpty()){
-          throw new DBAppException();}
+
+          return;
+    }
 
             ArrayList<Vector> pagesToSearchIn = getPageToSearchIn(clusteringKeyValue,pages,table);
 
 
             if(pagesToSearchIn.size()==0)
-                throw new DBAppException();
+                return;
 
             Vector<Hashtable<String,Object>> mainPageVector = pagesToSearchIn.get(0);
             ArrayList<Vector<Hashtable<String,Object>>> overFlowPagesOfMainPage = getOverflowPages(mainPageVector);
@@ -751,7 +753,7 @@ public class DBApp implements DBAppInterface{
 
                 if(i==0 && !checkKeyGreaterThanMin(pageVector,colNameValue,table) )
                 {
-
+                    retArray.removeAll(retArray);
                     retArray.add(pageVector);
                     checkIfNextPageExistsAndAdd(i,pages,retArray);
                     break;
@@ -949,24 +951,24 @@ public class DBApp implements DBAppInterface{
     public static void main(String[] args) throws DBAppException, IOException, ClassNotFoundException {
         String strTableName = "Student";
         DBApp dbApp = new DBApp( );
-//        Hashtable htblColNameType = new Hashtable( ); htblColNameType.put("id", "java.lang.Integer");
-//        htblColNameType.put("name", "java.lang.String");
-//        htblColNameType.put("gpa", "java.lang.double");
-//        Hashtable<String,String> htblColNameMin = new Hashtable( );
-//        Hashtable<String,String> htblColNameMax = new Hashtable( );
-//        htblColNameMin.put("name","0");
-//        htblColNameMin.put("gpa","0");
-//        htblColNameMin.put("id","0");
-//
-//        htblColNameMax.put("name","0");
-//        htblColNameMax.put("gpa","4");
-//        htblColNameMax.put("id","313242");
-//
-//
-//
-//
-//        dbApp.createTable( strTableName, "id", htblColNameType,htblColNameMin,htblColNameMax );
-//          dbApp.init();
+        Hashtable htblColNameType = new Hashtable( ); htblColNameType.put("id", "java.lang.Integer");
+        htblColNameType.put("name", "java.lang.String");
+        htblColNameType.put("gpa", "java.lang.double");
+        Hashtable<String,String> htblColNameMin = new Hashtable( );
+        Hashtable<String,String> htblColNameMax = new Hashtable( );
+        htblColNameMin.put("name","0");
+        htblColNameMin.put("gpa","0");
+        htblColNameMin.put("id","0");
+
+        htblColNameMax.put("name","0");
+        htblColNameMax.put("gpa","4");
+        htblColNameMax.put("id","313242");
+
+
+
+
+        dbApp.createTable( strTableName, "id", htblColNameType,htblColNameMin,htblColNameMax );
+          dbApp.init();
 //        Hashtable<String,Object> testHash = new Hashtable<>();
 //        testHash.put("id",1);
 //        testHash.put("name","Ahmed");
@@ -1019,35 +1021,37 @@ public class DBApp implements DBAppInterface{
 //
 //
 //
-//        dbApp.createTable( strTableName, "id", htblColNameType,htblColNameMin,htblColNameMax );
-//        dbApp.init();
-//        Table test = getTable(strTableName);
-//        String page0Path = createPage(test);
-//        Vector<Hashtable<String,Object>> page0 =readVectorFromPageFile(page0Path);
-//        int i =0;
-//        while(!checkIfPageIsFull(page0)) {
-//            Hashtable<String,Object> col = new Hashtable<>();
-//            col.put("id",i);
-//            insertToVector(page0, col, "id");
-//            i++;
-//        }
-//        modifyHeaderInsert(page0,test);
-//        writeVectorToPageFile(page0);
-//        String page1Path = createPage(test);
-//        Vector<Hashtable<String,Object>> page1 =readVectorFromPageFile(page1Path);
-//        while(!checkIfPageIsFull(page1)) {
-//            Hashtable<String,Object> col = new Hashtable<>();
-//            col.put("id",i);
-//            insertToVector(page1, col, "id");
-//            i++;
-//        }
-//        modifyHeaderInsert(page1,test);
-//        writeVectorToPageFile(page1);
-//        Hashtable<String,Object> col1= new Hashtable<>();
-//        col1.put("id",600);
-//
-//    ArrayList<Vector> rt =    getPageToInsertIn(col1,test.getPages(),test);
-//
+        dbApp.createTable( strTableName, "id", htblColNameType,htblColNameMin,htblColNameMax );
+        dbApp.init();
+        Table test = getTable(strTableName);
+        String page0Path = createPage(test);
+        Vector<Hashtable<String,Object>> page0 =readVectorFromPageFile(page0Path);
+        int i =0;
+        while(!checkIfPageIsFull(page0)) {
+            Hashtable<String,Object> col = new Hashtable<>();
+            col.put("id",i);
+            insertToVector(page0, col, "id");
+            i++;
+        }
+        modifyHeaderInsert(page0,test);
+        writeVectorToPageFile(page0);
+        String page1Path = createPage(test);
+        Vector<Hashtable<String,Object>> page1 =readVectorFromPageFile(page1Path);
+        while(!checkIfPageIsFull(page1)) {
+            Hashtable<String,Object> col = new Hashtable<>();
+            col.put("id",i);
+            insertToVector(page1, col, "id");
+            i++;
+        }
+        modifyHeaderInsert(page1,test);
+        writeVectorToPageFile(page1);
+        Hashtable<String,Object> col1= new Hashtable<>();
+        col1.put("id",600);
+
+    ArrayList<Vector> rt =    getPageToInsertIn(col1,test.getPages(),test);
+
+    System.out.println(rt);
+
 //
 //
 

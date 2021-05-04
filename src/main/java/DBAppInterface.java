@@ -15,7 +15,7 @@ public interface DBAppInterface {
 
     void updateTable(String tableName, String clusteringKeyValue, Hashtable<String, Object> columnNameValue) throws DBAppException, IOException, ClassNotFoundException;
 
-    void deleteFromTable(String tableName, Hashtable<String, Object> columnNameValue) throws DBAppException;
+    void deleteFromTable(String tableName, Hashtable<String, Object> columnNameValue) throws DBAppException, IOException, ClassNotFoundException;
 
     Iterator selectFromTable(SQLTerm[] sqlTerms, String[] arrayOperators) throws DBAppException;
 
