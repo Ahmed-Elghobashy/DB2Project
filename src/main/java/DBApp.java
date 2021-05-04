@@ -63,29 +63,18 @@ public class DBApp implements DBAppInterface{
             e.printStackTrace();
         }
         setConfig();
-
-        try {
-            intializeTables();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-        setConfig();
     }
 
 
 
-   public void insertIntoTable(String tableName, Hashtable<String, Object> colNameValue) throws DBAppException, IOException, ClassNotFoundException {
-       if(checkInputs(tableName,colNameValue)==false){
-           throw new DBAppException();
-       }
-        if(checkInputs(tableName,colNameValue)==false){
-            throw new DBAppException();
-        }
+   public void insertIntoTable(String tableName, Hashtable<String, Object> colNameValue) throws DBAppException, IOException, ClassNotFoundException, ParseException {
+
+
         Table table= getTable(tableName);
 
         //when trying to insert into a table that doesn't exist
         if (table  == null)
-            throw new DBAppException();
+            return;
 
         ArrayList<String>  pages = table.getPages();
         String clusteringColumn = table.getClusteringColumn();
@@ -93,8 +82,13 @@ public class DBApp implements DBAppInterface{
         //check for errors in input
 
 
+       //       if(checkInputs(tableName,colNameValue)==false){
+//           throw new DBAppException();
+//       }
 
-        //if no pages exist(The table is empty), Create page and insert
+
+
+       //if no pages exist(The table is empty), Create page and insert
        if(pages.isEmpty()){
         insertIntoEmptyTable(table,colNameValue);
        }
@@ -246,7 +240,7 @@ public class DBApp implements DBAppInterface{
 //    private void insertToPage(Vector<Hashtable<String, Object>> mainPageVector,Hashtable<String,Object> colNameValue, Table table) throws IOException {
 //    }
     public static boolean checkInputs (String tableName,Hashtable <String,Object> colNameValue) throws IOException, ParseException {
-        Vector<String[]> data=null;
+        Vector<String[]> data=new Vector<>();
         String row;
         File csvFile = new File(metadataCSVPath);
         if (csvFile.isFile())
@@ -309,7 +303,7 @@ public class DBApp implements DBAppInterface{
      return false;
     }
 
-    private void insertToPage(Vector<Hashtable<String, Object>> mainPageVector, Comparable insertKey,Hashtable<String,Object> colNameValue, Table table) throws IOException {
+    private void insertToPage(Vector<Hashtable<String, Object>> mainPageVector,Hashtable<String,Object> colNameValue, Table table) throws IOException {
         String clusteringColumn = table.getClusteringColumn();
         insertToVector(mainPageVector,colNameValue,clusteringColumn);
         modifyHeaderInsert(mainPageVector,table);
@@ -331,7 +325,6 @@ public class DBApp implements DBAppInterface{
         if(indexToInsertIn>=mainPageVector.size())
         {
             mainPageVector.add(colNameValue);
-            return;
             return;
         }
         //object at the index that we should insert at
@@ -416,17 +409,20 @@ public class DBApp implements DBAppInterface{
 
     public void updateTable(String tableName, String clusteringKeyValue, Hashtable<String, Object> columnNameValue) throws DBAppException, IOException, ClassNotFoundException, ParseException {
         Table table= getTable(tableName);
-        if(checkInputs(tableName,columnNameValue)==false){
-            throw new DBAppException();
-        }
+//        if(checkInputs(tableName,columnNameValue)==false){
+//            throw new DBAppException();
+//        }
         //when trying to insert into a table that doesn't exist
         if (table  == null)
             throw new DBAppException();
 
         ArrayList<String>  pages = table.getPages();
         String clusteringColumn = table.getClusteringColumn();
+        String clusteringKeyType = table.getColumnType(clusteringColumn);
+        Comparable clusteringKey =castTo(clusteringKeyValue,clusteringKeyType);
 
-    if(pages.isEmpty()){
+
+        if(pages.isEmpty()){
           throw new DBAppException();}
 
             ArrayList<Vector> pagesToSearchIn = getPageToSearchIn(clusteringKeyValue,pages,table);
@@ -438,10 +434,11 @@ public class DBApp implements DBAppInterface{
             Vector<Hashtable<String,Object>> mainPageVector = pagesToSearchIn.get(0);
             ArrayList<Vector<Hashtable<String,Object>>> overFlowPagesOfMainPage = getOverflowPages(mainPageVector);
 
-            //First search in main page vector
-            if(binarySearchForKey(mainPageVector,clusteringKeyValue,clusteringColumn)!=-1)
+
+        //First search in main page vector
+            if(binarySearchForKey(mainPageVector,clusteringKey,clusteringColumn)!=-1)
             {
-                mainPageVector.set(binarySearchForKey(mainPageVector,clusteringKeyValue,clusteringColumn),columnNameValue);
+                mainPageVector.set(binarySearchForKey(mainPageVector,clusteringKey,clusteringColumn),columnNameValue);
                 return;
             }
             //if not found search in overflow pages
@@ -768,7 +765,8 @@ public class DBApp implements DBAppInterface{
                 {
                     Hashtable<String,String> column = new Hashtable<>();
                     column.put(tableCSV[COLUMN_NAME],tableCSV[COLUMN_TYPE]);
-                    ArrayList< Hashtable<String,String>> columns = table.getColumns();
+                    ArrayList< Hashtable<String,String>> columns = table.getColumnsType();
+                    columns.add(column);
                     if(tableCSV[ClUSTERING_KEY].equals("TRUE")){
                         table.setClusteringColumn(tableCSV[COLUMN_NAME]);
                     }
@@ -1103,7 +1101,7 @@ public class DBApp implements DBAppInterface{
         }
 
     public static int binarySearchForKey (Vector<Hashtable<String,Object>> vector, Comparable searchKey,String clustrColumn){
-        return binarySearchForKey(vector,searchKey,1,vector.size(),clustrColumn);
+        return binarySearchForKey(vector,searchKey,1,vector.size()-1,clustrColumn);
     }
 
 
@@ -1190,7 +1188,12 @@ public class DBApp implements DBAppInterface{
 
         String clusteringColumn =  table.getClusteringColumn();
         Hashtable<String,Object> header = pageVector.get(0);
-        Comparable clusteringKey =(Comparable) clusteringKeyValue;
+        String clusteringKeyType = table.getColumnType(clusteringColumn);
+        Comparable clusteringKey =castTo(clusteringKeyValue,clusteringKeyType);
+
+
+        //clustering key value cast to comparable other than string
+
         Comparable minKey = (Comparable) header.get("minKey");
         if(minKey==null) // || minkey.equals("")
             return true;
@@ -1199,7 +1202,40 @@ public class DBApp implements DBAppInterface{
 
     }
 
+    public static Comparable castTo (String valueString,String type)
+    {
+        Comparable ret=valueString ;
+        if(type.equals("java.lang.Integer"))
+        {
+            ret=Integer.parseInt(valueString);
+        }
+        else if(type.equals("java.lang.Double")){
+            ret=Double.parseDouble(valueString);
+        }
+        else if(type.equals("java.util.Date"))
+        {
+            ret=formatDate(valueString);
+        }
 
+        return ret;
+    }
+
+    public static boolean inDateFormat(String valueString){
+
+        return false;
+    }
+
+    public static Date formatDate(String dateString)
+    {
+        String[] dateStrArr = dateString.split("-");
+        int year = Integer.parseInt(dateStrArr[0]);
+        int month = Integer.parseInt(dateStrArr[1]);
+        int day =  Integer.parseInt(dateStrArr[2]);
+
+        Date date = new Date(year-1900,month-1,day);
+
+        return date;
+    }
 
     public static void main(String[] args) throws DBAppException, IOException, ClassNotFoundException {
         String strTableName = "Student";
