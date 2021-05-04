@@ -1,4 +1,5 @@
 import java.io.*;
+import java.lang.reflect.Array;
 import java.nio.file.*;
 import java.text.DateFormat;
 import java.text.ParseException;
@@ -332,7 +333,6 @@ public class DBApp implements DBAppInterface{
         {
             mainPageVector.add(colNameValue);
             return;
-            return;
         }
         //object at the index that we should insert at
         Hashtable<String,Object> recordToInsertAt = mainPageVector.get(indexToInsertIn);
@@ -455,8 +455,14 @@ public class DBApp implements DBAppInterface{
 
 
 
-    //empty page -> delete it
-    // empty page with overflow -> shift
+    /* check if modifyheader is correct
+    * check if pagevector=overflow.get(0) is correct
+    *
+    *
+    *
+    *
+    *
+    * */
 
     public void deleteFromTable(String tableName, Hashtable<String, Object> columnNameValue) throws DBAppException, IOException, ClassNotFoundException {
         Table table = getTable(tableName);
@@ -476,16 +482,20 @@ public class DBApp implements DBAppInterface{
             Vector<Hashtable<String,Object>> pageVector =  readVectorFromPageFile(pagePath);
 
             ArrayList<Vector<Hashtable<String,Object>>>overflowPages=getOverflowPages(pageVector);
+        //delete from all pages if found
 
-            deleteAllRecordsFromPage(pageVector,columnNameValue);
-            deleteAllRecordsFromOverflowPages(overflowPages,columnNameValue);
+            deleteAllRecordsFromPage(pageVector,columnNameValue,table);
+            deleteAllRecordsFromOverflowPages(overflowPages,columnNameValue,table);
+            deleteOverflowPages(overflowPages);
 
-            if(checkIfPageIsEmpty(pageVector)){
-                deletePage(pages.get(i),table);
+
+            if(checkIfPageIsEmpty(pageVector)&&checkIfPageHasNoOverflow(pageVector)){
+                    deletePage(pages.get(i),table);
             }
-            //need to check on empty overflow
 
-
+            if(checkIfPageIsEmpty(pageVector)&&!checkIfPageHasNoOverflow(pageVector)){
+                switchMainPageWithOverflow(pageVector);
+            }
 
 
 
@@ -495,26 +505,40 @@ public class DBApp implements DBAppInterface{
 
 
         }
+
+    }
+
+    private void switchOverflowToEmptyPage(Vector<Hashtable<String, Object>> pageVector, ArrayList<Vector<Hashtable<String, Object>>> overflowPages) {
+        for (int i = 0; i < overflowPages.size(); i++) {
+            if(overflowPages.get(i).size()>1){
+
+            }
+
+        }
+    }
+
+    private boolean checkIfPageHasNoOverflow(Vector<Hashtable<String, Object>> pageVector) throws IOException, ClassNotFoundException {
+        ArrayList<Vector<Hashtable<String,Object>>> overflowPages = getOverflowPages(pageVector);
+
+        return overflowPages.size()==0;
 
     }
 
 
     public static boolean checkIfDelete(Hashtable<String,Object> record,Hashtable<String,Object>deleteCondition){
 
-
-        return false;
+        return record.equals(deleteCondition);
     }
-    public static void deleteRecord(Vector<Hashtable<String,Object>> pageVector,Hashtable<String,Object> record) {
+
+    public static void deleteRecord(Vector<Hashtable<String,Object>> pageVector,Hashtable<String,Object> record,Table table) throws IOException, ClassNotFoundException {
         pageVector.remove(record);
+        modifyHeaderdelete(pageVector,table);
+
+
+
     }
 
-    public static void deleteEmptyPage(Vector<Hashtable<String,Object>> pageVector,ArrayList<Vector<Hashtable<String,Object>>> overFlowPages){
-        //switch vectors and change header
-        // switch overflowpages
-        if(checkIfPageIsEmpty(pageVector)){
 
-        }
-    }
 
     public static void deletePage(String pageName,Table table) throws IOException, ClassNotFoundException {
         String pagePath=getPagePath(pageName);
@@ -539,21 +563,25 @@ public class DBApp implements DBAppInterface{
 
 
 
-    public static void deleteAllRecordsFromPage(Vector<Hashtable<String,Object>>pageVector,Hashtable<String,Object>deleteCondition){
+
+
+    public static void deleteAllRecordsFromPage(Vector<Hashtable<String,Object>>pageVector,Hashtable<String,Object>deleteCondition,Table table) throws IOException, ClassNotFoundException {
         for (int i = 1; i <pageVector.size() ; i++) {
             Hashtable<String,Object> record = pageVector.get(i);
             if(checkIfDelete(record,deleteCondition)){
-                deleteRecord(pageVector,record);
+                deleteRecord(pageVector,record,table);
             }
 
         }
     }
 
-    public static void deleteAllRecordsFromOverflowPages(ArrayList<Vector<Hashtable<String,Object>>>overFlowArray,Hashtable<String,Object>deleteCondition){
+    public static void deleteAllRecordsFromOverflowPages(ArrayList<Vector<Hashtable<String,Object>>>overFlowArray,Hashtable<String,Object>deleteCondition,Table table) throws IOException, ClassNotFoundException {
         for (int i = 0; i <overFlowArray.size() ; i++) {
             Vector<Hashtable<String, Object>> overflowPageVector = overFlowArray.get(i);
-            deleteAllRecordsFromPage(overflowPageVector,deleteCondition);
+            deleteAllRecordsFromPage(overflowPageVector,deleteCondition,table);
+
         }
+
     }
 
     public static boolean checkIfPageIsEmpty(Vector<Hashtable<String,Object>> pageVector){
@@ -565,20 +593,61 @@ public class DBApp implements DBAppInterface{
 
 
 
+    public static void deleteOverflowPages(ArrayList<Vector<Hashtable<String,Object>>> overflowPages) throws IOException, ClassNotFoundException {
+
+
+
+        for (int i = 0; i < overflowPages.size(); i++) {
+            if(checkIfPageIsEmpty(overflowPages.get(i))){
+                modifyHeaderThenDeleteOverflowPage(overflowPages.get(i));
+                overflowPages.remove(i);
+                i--;
+            }
+        }
+    }
 
 
 
 
 
+    public static void modifyHeaderThenDeleteOverflowPage(Vector<Hashtable<String,Object>> overflowVector) throws IOException, ClassNotFoundException {
+        Hashtable<String, Object> header = (Hashtable<String, Object>) overflowVector.get(0);
+        String previousPage = (String) header.get("isOverflowOf");
+        String nextPage = (String) header.get("pageName");
+
+        String previousPagePath=getPagePath(previousPage);
+        String nextPagePath = getPagePath(nextPage);
+
+        Vector<Hashtable<String,Object>> previousPageVector= readVectorFromPageFile(previousPagePath);
+        Vector<Hashtable<String,Object>> nextPagePathVector= readVectorFromPageFile(nextPagePath);
+
+        Hashtable<String, Object> previousPageHeader = (Hashtable<String, Object>) previousPageVector.get(0);
+        Hashtable<String, Object> nextPageHeader = (Hashtable<String, Object>) nextPagePathVector.get(0);
+
+        nextPageHeader.put("isOverFlowOf",previousPage);
+        previousPageHeader.put("pageName",nextPage);
 
 
-    public static void modifyHeaderdelete(Vector<Hashtable<String,Object>> pageVector,Table table) {
+
+    }
+
+
+
+    public static void switchMainPageWithOverflow(Vector<Hashtable<String,Object>> pageVector) throws IOException, ClassNotFoundException {
+        ArrayList<Vector<Hashtable<String,Object>>> overflowPages = getOverflowPages(pageVector);
+        //check if this is correct
+        pageVector=overflowPages.get(0);
+
+    }
+
+    public static void modifyHeaderdelete(Vector<Hashtable<String,Object>> pageVector,Table table) throws IOException, ClassNotFoundException {
         Hashtable<String, Object> header = (Hashtable<String, Object>) pageVector.get(0);
         String clusteringColumn = table.getClusteringColumn();
         Comparable maxKeyHeader = (Comparable) header.get("maxKey");
         Comparable minKeyHeader = (Comparable) header.get("minKey");
         Comparable maxKey = (Comparable) pageVector.lastElement().get(clusteringColumn);
         Comparable minKey = (Comparable) pageVector.get(1).get(clusteringColumn);
+
 
         if ( maxKeyHeader==null || minKeyHeader==null ){
             header.put("maxKey",maxKey);
@@ -595,13 +664,7 @@ public class DBApp implements DBAppInterface{
         }
     }
 
-    public static void  deletePage(Table table,String pagePath) throws IOException {
 
-
-
-
-
-    }
 
 
 
