@@ -8,8 +8,8 @@ public class Table {
     private String clusteringColumn;
     // key:column Name value:type
     private ArrayList<Hashtable<String, String>> columnType = new ArrayList<>();
-    private ArrayList<Hashtable<String, String>> columMax = new ArrayList<>();
-    private ArrayList<Hashtable<String, String>> columMin = new ArrayList<>();
+    private ArrayList<Hashtable<String, Comparable>> columMax = new ArrayList<>();
+    private ArrayList<Hashtable<String, Comparable>> columMin = new ArrayList<>();
     private ArrayList<String> pages;
 
     public Table(String tableName) {
@@ -19,6 +19,14 @@ public class Table {
 
     public String getName() {
         return tableName;
+    }
+
+    public ArrayList<Hashtable<String, Comparable>> getColumnsMax() {
+        return columMax;
+    }
+
+    public ArrayList<Hashtable<String, Comparable>> getColumnsMin() {
+        return columMin;
     }
 
     public void addPage(String pageName) {
@@ -59,6 +67,35 @@ public class Table {
         }
         return ret;
     }
+
+
+    public Comparable getColumnMax(String columnName){
+        Comparable ret = null;
+        for (Hashtable<String,Comparable> col :
+                columMax ) {
+            Comparable temp = col.get(columnName);
+            if(temp!=null)
+                ret=temp;
+
+        }
+        return ret;
+
+
+    }
+
+    public Comparable getColumnMin(String columnName){
+        Comparable ret = null;
+        for (Hashtable<String,Comparable> col :
+                columMin ) {
+            Comparable temp = col.get(columnName);
+            if(temp!=null)
+                ret=temp;
+
+        }
+        return ret;
+
+    }
+
 
     public void setColumnType(ArrayList<Hashtable<String,String>> colsType){
         columnType.addAll(colsType);

@@ -1,9 +1,5 @@
 import java.io.*;
-import java.lang.reflect.Array;
 import java.nio.file.*;
-import java.text.DateFormat;
-import java.text.ParseException;
-import java.text.SimpleDateFormat;
 import java.text.DateFormat;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
@@ -71,13 +67,16 @@ public class DBApp implements DBAppInterface{
 
 
    public void insertIntoTable(String tableName, Hashtable<String, Object> colNameValue) throws DBAppException, IOException, ClassNotFoundException {
-//       if(checkInputs(tableName,colNameValue)==false){
-//           throw new DBAppException();
-//       }
+
 
         Table table= getTable(tableName);
 
-        //when trying to insert into a table that doesn't exist
+       if(checkInputsMod(table,colNameValue)==false){
+           throw new DBAppException();
+       }
+
+
+       //when trying to insert into a table that doesn't exist
         if (table  == null)
             return;
 
@@ -308,6 +307,68 @@ public class DBApp implements DBAppInterface{
      return false;
     }
 
+
+    public static boolean checkInputsMod (Table table,Hashtable <String,Object> colNameValue)  {
+
+
+
+        Set<String> columnNamesInput = colNameValue.keySet();
+        Iterator<String> itr = columnNamesInput.iterator();
+        while (itr.hasNext())
+        {
+            String colName = itr.next();
+            if(!columnNamesInput.contains(colName))
+                return false;
+            String colType = table.getColumnType(colName);
+            Comparable colMin = table.getColumnMin(colName);
+            Comparable colMax = table.getColumnMax(colName);
+            Comparable colValue = (Comparable) colNameValue.get(colName);
+
+            // if trying to insert a column that doesn't exist
+            if(colMax==null || colMin==null || colType==null)
+                return false;
+
+            boolean checkType = checkInputType(colValue,colType);
+            if(checkType==false)
+            {
+                return false;
+            }
+            boolean checkMin = checkInputMin(colValue,colMin);
+            boolean checkMax = checkInputMax(colValue,colMax);
+
+            if (!checkMax || !checkMin)
+                return false;
+        }
+        
+
+        return true;
+    }
+
+    private static boolean checkInputMax(Comparable colValue, Comparable colMax) {
+        return colValue.compareTo(colMax)<=0;
+
+    }
+
+    private static boolean checkInputMin(Comparable colValue, Comparable colMin) {
+        return colValue.compareTo(colMin)>=0;
+    }
+
+    private static boolean checkInputType(Comparable colValue, String colType) {
+
+        if(colValue instanceof Date && colType.equals("java.util.Date"))
+            return true;
+        if(colValue instanceof Integer && colType.equals("java.lang.Integer"))
+            return true;
+        if(colValue instanceof Double && colType.equals("java.lang.Double"))
+            return true;
+        if(colValue instanceof String && colType.equals("java.lang.String"))
+            return true;
+
+        return false;
+
+
+    }
+
     private void insertToPage(Vector<Hashtable<String, Object>> mainPageVector,Hashtable<String,Object> colNameValue, Table table) throws IOException {
         String clusteringColumn = table.getClusteringColumn();
         insertToVector(mainPageVector,colNameValue,clusteringColumn);
@@ -414,9 +475,9 @@ public class DBApp implements DBAppInterface{
 
     public void updateTable(String tableName, String clusteringKeyValue, Hashtable<String, Object> columnNameValue) throws DBAppException, IOException, ClassNotFoundException, ParseException {
         Table table= getTable(tableName);
-//        if(checkInputs(tableName,columnNameValue)==false){
-//            throw new DBAppException();
-//        }
+        if(checkInputsMod(table,columnNameValue)==false){
+            throw new DBAppException();
+        }
         //when trying to insert into a table that doesn't exist
         if (table  == null)
             throw new DBAppException();
@@ -425,6 +486,7 @@ public class DBApp implements DBAppInterface{
         String clusteringColumn = table.getClusteringColumn();
         String clusteringKeyType = table.getColumnType(clusteringColumn);
         Comparable clusteringKey =castTo(clusteringKeyValue,clusteringKeyType);
+        columnNameValue.put(clusteringColumn,clusteringKeyValue);
 
 
         if(pages.isEmpty()){
@@ -828,16 +890,38 @@ public class DBApp implements DBAppInterface{
                 final int INDEXED=4;
                 final int MIN=5;
                 final int MAX =6;
+                String colType = tableCSV[COLUMN_TYPE];
+
 
                 if(tableCSV[TABLE_NAME].equals(tableName))
                 {
                     Hashtable<String,String> column = new Hashtable<>();
                     column.put(tableCSV[COLUMN_NAME],tableCSV[COLUMN_TYPE]);
+                    //set columns type
                     ArrayList< Hashtable<String,String>> columns = table.getColumnsType();
                     columns.add(column);
+                    //set clustering key
                     if(tableCSV[ClUSTERING_KEY].equals("TRUE")){
                         table.setClusteringColumn(tableCSV[COLUMN_NAME]);
                     }
+                    //set min
+                    ArrayList<Hashtable<String,Comparable>> colMin = table.getColumnsMin();
+                    Hashtable<String,Comparable> min = new Hashtable<>();
+                    String minString = tableCSV[MIN];
+                    Comparable minValue = castTo(minString,colType);
+                    min.put(tableCSV[COLUMN_NAME],minValue);
+                    colMin.add(min);
+                    //set max
+                    ArrayList<Hashtable<String,Comparable>> colMax = table.getColumnsMax();
+                    Hashtable<String,Comparable> max = new Hashtable<>();
+                    String maxString = tableCSV[MAX];
+                    Comparable maxValue = castTo(maxString,colType);
+                    max.put(tableCSV[COLUMN_NAME],maxValue);
+                    colMax.add(max);
+
+
+
+
 
                 }
 
