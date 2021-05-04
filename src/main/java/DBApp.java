@@ -243,8 +243,8 @@ public class DBApp implements DBAppInterface{
 //       return overflowFromSecondPage;
 //   }
 
-    private void insertToPage(Vector<Hashtable<String, Object>> mainPageVector,Hashtable<String,Object> colNameValue, Table table) throws IOException {
-
+//    private void insertToPage(Vector<Hashtable<String, Object>> mainPageVector,Hashtable<String,Object> colNameValue, Table table) throws IOException {
+//    }
     public static boolean checkInputs (String tableName,Hashtable <String,Object> colNameValue) throws IOException, ParseException {
         Vector<String[]> data=null;
         String row;
@@ -504,8 +504,9 @@ public class DBApp implements DBAppInterface{
 
         return false;
     }
-    public static void deleteRecord(Vector<Hashtable<String,Object>> pageVector,Hashtable<String,Object> record){
+    public static void deleteRecord(Vector<Hashtable<String,Object>> pageVector,Hashtable<String,Object> record) {
         pageVector.remove(record);
+    }
 
     public static void deleteEmptyPage(Vector<Hashtable<String,Object>> pageVector,ArrayList<Vector<Hashtable<String,Object>>> overFlowPages){
         //switch vectors and change header
