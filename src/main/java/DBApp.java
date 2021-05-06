@@ -114,6 +114,8 @@ public class DBApp implements DBAppInterface{
            if(!checkIfPageIsFull(mainPageVector)){
 
                insertToPage(mainPageVector,colNameValue,table);
+               writeVectorToPageFile(mainPageVector);
+               return;
 
 
            }
@@ -126,6 +128,7 @@ public class DBApp implements DBAppInterface{
                      insertToPage(overflowPageVector,colNameValue,table);
                      modifyMainPageVectorHeadeAfterInsertOverflow(mainPageVector,colNameValue,table);
                      writeVectorToPageFile(mainPageVector);
+                     return;
                  }
                  else{
                      Hashtable<String,Object> tempOverflowRecord = colNameValue;
@@ -134,17 +137,16 @@ public class DBApp implements DBAppInterface{
                          Vector<Hashtable<String,Object>> currentPageVector = overFlowPagesOfMainPage.get(i);
                         if(i==overFlowPagesOfMainPage.size()-1){
                             //create new overflow page and shift to it
-                            String newOverflowName = createOverflowPage(table,currentPageVector);
-                            String overflowPath = getPagePath(newOverflowName);
-                            Vector<Hashtable<String,Object>> newOverflowVector = readVectorFromPageFile(overflowPath);
+                            Vector<Hashtable<String,Object>> newOverflowVector = createOverflowPage(table,currentPageVector);
                             insertToPageAndShift(currentPageVector,newOverflowVector,colNameValue,table);
                             writeVectorToPageFile(currentPageVector);
                             writeVectorToPageFile(newOverflowVector);
-                            break;
+                            return;
                         }
                          Vector<Hashtable<String,Object>> nextPageVector = overFlowPagesOfMainPage.get(i+1);
                          tempOverflowRecord = insertToPageAndShift(currentPageVector,nextPageVector,tempOverflowRecord,table);
                          writeVectorToPageFile(currentPageVector);
+
 
                      }
                      modifyMainPageVectorHeadeAfterInsertOverflow(mainPageVector,colNameValue,table);
@@ -160,9 +162,8 @@ public class DBApp implements DBAppInterface{
                    // if full => make overflow page and insert into it
                    if(checkIfPageIsFull(nextPageVector)){
                         //create overFlowPage
-                       String overFlowPagePath = createOverflowPage(table,mainPageVector);
-                        //read overflowPage
-                       Vector<Hashtable<String,Object>> overflowPageVector = readVectorFromPageFile(overFlowPagePath);
+                       Vector<Hashtable<String,Object>> overflowPageVector = createOverflowPage(table,mainPageVector);
+                       //
                         //insert to overflow page
                        insertToVector(overflowPageVector,colNameValue,clusteringColumn);
                        modifyHeader(overflowPageVector,table);
@@ -189,8 +190,7 @@ public class DBApp implements DBAppInterface{
                }
                //if it is full and has no page after it create a page and insert in it
                else {
-                    String newPagePath = createPage(table);
-                    Vector<Hashtable<String,Object>> newPageVector = readVectorFromPageFile(newPagePath);
+                    Vector<Hashtable<String,Object>> newPageVector = createPage(table);
                     insertToPageAndShift(mainPageVector,newPageVector,colNameValue,table);
                     writeVectorToPageFile(mainPageVector);
                     writeVectorToPageFile(newPageVector);
@@ -374,7 +374,7 @@ public class DBApp implements DBAppInterface{
         String clusteringColumn = table.getClusteringColumn();
         insertToVector(mainPageVector,colNameValue,clusteringColumn);
         modifyHeader(mainPageVector,table);
-        writeVectorToPageFile(mainPageVector);
+//        writeVectorToPageFile(mainPageVector);
 
     }
 
@@ -1003,8 +1003,7 @@ public class DBApp implements DBAppInterface{
     }
 
     public static void insertIntoEmptyTable(Table table, Hashtable<String,Object> colNameValue) throws IOException, ClassNotFoundException {
-        String newPagePath = createPage(table);
-        Vector<Hashtable<String,Object>> pageVector =  readVectorFromPageFile(newPagePath);
+        Vector<Hashtable<String,Object>> pageVector = createPage(table);
         pageVector.add(colNameValue);
         modifyHeader(pageVector,table);
         writeVectorToPageFile(pageVector);
@@ -1105,7 +1104,7 @@ public class DBApp implements DBAppInterface{
         }
 
         //return page path
-        public static String  createPage(Table table) throws IOException {
+        public static Vector  createPage(Table table) throws IOException {
 
             int pageNumber = table.getPages().size();
             String pagePath = getPagePath(table.getName(),pageNumber);
@@ -1117,10 +1116,10 @@ public class DBApp implements DBAppInterface{
             table.addPage(getPageName(table.getName(),pageNumber));
             writeVectorToPageFile(pageVector);
 
-            return  pagePath;
+            return  pageVector;
         }
 
-        public static String createOverflowPage(Table table,Vector<Hashtable<String,Object>> parentPage) throws IOException {
+        public static Vector createOverflowPage(Table table,Vector<Hashtable<String,Object>> parentPage) throws IOException {
           Hashtable<String,Object> parentPageHeader = parentPage.get(0);
           String parentIsOverflow = (String) parentPageHeader.get("isOverflowOf");
           String parentPageName = (String) parentPageHeader.get("pageName");
@@ -1143,7 +1142,7 @@ public class DBApp implements DBAppInterface{
           Vector<Hashtable<String,Object>> overflowPageVector = new Vector<>();
           createHeaderForOverflowPage(overflowPageVector,parentPageName,overflowPageName);
           writeVectorToPageFile(overflowPageVector);
-          return overflowPagePath;
+          return overflowPageVector;
         }
 
     private static String getOverflowPageName(String parentPageName, int overFlowNumber) {
