@@ -95,6 +95,7 @@ public class DBApp implements DBAppInterface{
        //if no pages exist(The table is empty), Create page and insert
        if(pages.isEmpty()){
         insertIntoEmptyTable(table,colNameValue);
+        return;
        }
         else {
            ArrayList<Vector> pagesToInsertIn = getPageToInsertIn(colNameValue,pages,table);
@@ -164,7 +165,7 @@ public class DBApp implements DBAppInterface{
                        Vector<Hashtable<String,Object>> overflowPageVector = readVectorFromPageFile(overFlowPagePath);
                         //insert to overflow page
                        insertToVector(overflowPageVector,colNameValue,clusteringColumn);
-                       modifyHeaderInsert(overflowPageVector,table);
+                       modifyHeader(overflowPageVector,table);
                        modifyMainPageVectorHeadeAfterInsertOverflow(mainPageVector,colNameValue,table);
                        writeVectorToPageFile(mainPageVector);
                        writeVectorToPageFile(overflowPageVector);
@@ -215,8 +216,8 @@ public class DBApp implements DBAppInterface{
             overflowFromSecondPage = toShiftTo.lastElement();
             toShiftTo.remove(overflowFromSecondPage);
         }
-        modifyHeaderInsert(toInsertIn,table);
-        modifyHeaderInsert(toShiftTo,table);
+        modifyHeader(toInsertIn,table);
+        modifyHeader(toShiftTo,table);
 
         return overflowFromSecondPage;
     }
@@ -372,7 +373,7 @@ public class DBApp implements DBAppInterface{
     private void insertToPage(Vector<Hashtable<String, Object>> mainPageVector,Hashtable<String,Object> colNameValue, Table table) throws IOException {
         String clusteringColumn = table.getClusteringColumn();
         insertToVector(mainPageVector,colNameValue,clusteringColumn);
-        modifyHeaderInsert(mainPageVector,table);
+        modifyHeader(mainPageVector,table);
         writeVectorToPageFile(mainPageVector);
 
     }
@@ -417,7 +418,7 @@ public class DBApp implements DBAppInterface{
         mainPageVector.insertElementAt(colNameValue,indexToInsertIn);
     }
 
-    private static ArrayList<Vector<Hashtable<String,Object>>> getOverflowPages(Vector<Hashtable<String, Object>> mainPageVector) throws IOException, ClassNotFoundException {
+    private static ArrayList<Vector<Hashtable<String,Object>>> getOverflowPages(Vector<Hashtable<String, Object>> mainPageVector)  {
         ArrayList<Vector<Hashtable<String,Object>>> overFlowPages = new ArrayList<>();
         Vector<Hashtable<String, Object>> overFlowPageVector = null;
         Vector<Hashtable<String, Object>> loopPageVector = mainPageVector;
@@ -473,7 +474,7 @@ public class DBApp implements DBAppInterface{
     }
 
 
-    public void updateTable(String tableName, String clusteringKeyValue, Hashtable<String, Object> columnNameValue) throws DBAppException, IOException, ClassNotFoundException, ParseException {
+    public void updateTable(String tableName, String clusteringKeyValue, Hashtable<String, Object> columnNameValue) throws DBAppException {
         Table table= getTable(tableName);
         if(checkInputsMod(table,columnNameValue)==false){
             throw new DBAppException();
@@ -502,10 +503,12 @@ public class DBApp implements DBAppInterface{
             ArrayList<Vector<Hashtable<String,Object>>> overFlowPagesOfMainPage = getOverflowPages(mainPageVector);
 
 
+            int indexToinsertIn = binarySearchForKey(mainPageVector,clusteringKey,clusteringColumn);
         //First search in main page vector
-            if(binarySearchForKey(mainPageVector,clusteringKey,clusteringColumn)!=-1)
+            if(indexToinsertIn!=-1)
             {
-                mainPageVector.set(binarySearchForKey(mainPageVector,clusteringKey,clusteringColumn),columnNameValue);
+                mainPageVector.set(indexToinsertIn,columnNameValue);
+                writeVectorToPageFile(mainPageVector);
                 return;
             }
             //if not found search in overflow pages
@@ -528,7 +531,7 @@ public class DBApp implements DBAppInterface{
     *
     * */
 
-    public void deleteFromTable(String tableName, Hashtable<String, Object> columnNameValue) throws DBAppException, IOException, ClassNotFoundException {
+    public void deleteFromTable(String tableName, Hashtable<String, Object> columnNameValue) throws DBAppException {
         Table table = getTable(tableName);
         if(table==null){
             throw new DBAppException();
@@ -550,7 +553,7 @@ public class DBApp implements DBAppInterface{
 
             deleteAllRecordsFromPage(pageVector,columnNameValue,table);
             deleteAllRecordsFromOverflowPages(overflowPages,columnNameValue,table);
-            deleteOverflowPages(overflowPages);
+            deleteOverflowPages(overflowPages,table);
 
 
             if(checkIfPageIsEmpty(pageVector)&&checkIfPageHasNoOverflow(pageVector)){
@@ -558,7 +561,7 @@ public class DBApp implements DBAppInterface{
             }
 
             if(checkIfPageIsEmpty(pageVector)&&!checkIfPageHasNoOverflow(pageVector)){
-                switchMainPageWithOverflow(pageVector);
+                switchMainPageWithOverflow(pageVector,overflowPages,table);
             }
 
 
@@ -581,7 +584,7 @@ public class DBApp implements DBAppInterface{
         }
     }
 
-    private boolean checkIfPageHasNoOverflow(Vector<Hashtable<String, Object>> pageVector) throws IOException, ClassNotFoundException {
+    private boolean checkIfPageHasNoOverflow(Vector<Hashtable<String, Object>> pageVector)  {
         ArrayList<Vector<Hashtable<String,Object>>> overflowPages = getOverflowPages(pageVector);
 
         return overflowPages.size()==0;
@@ -591,20 +594,29 @@ public class DBApp implements DBAppInterface{
 
     public static boolean checkIfDelete(Hashtable<String,Object> record,Hashtable<String,Object>deleteCondition){
 
-        return record.equals(deleteCondition);
+        Set<String> deleteConditionKeys = deleteCondition.keySet();
+        Iterator<String> i = deleteConditionKeys.iterator();
+        while(i.hasNext())
+        {
+            String deleteConditionKey = i.next();
+            Comparable deleteConditionValue = (Comparable) deleteCondition.get(deleteConditionKey);
+            Comparable recordValue = (Comparable) record.get(deleteConditionKey);
+
+            if (!recordValue.equals(deleteConditionValue))
+                return false;
+
+        }
+        return true;
     }
 
-    public static void deleteRecord(Vector<Hashtable<String,Object>> pageVector,Hashtable<String,Object> record,Table table) throws IOException, ClassNotFoundException {
+    public static void deleteRecord(Vector<Hashtable<String,Object>> pageVector,Hashtable<String,Object> record,Table table)  {
         pageVector.remove(record);
-        modifyHeaderdelete(pageVector,table);
-
-
-
+        modifyHeader(pageVector,table);
     }
 
 
 
-    public static void deletePage(String pageName,Table table) throws IOException, ClassNotFoundException {
+    public static void deletePage(String pageName,Table table)  {
         String pagePath=getPagePath(pageName);
         Path path= FileSystems.getDefault().getPath(pagePath);
         Vector<Hashtable<String,Object>> pageVector =  readVectorFromPageFile(pagePath);
@@ -629,21 +641,23 @@ public class DBApp implements DBAppInterface{
 
 
 
-    public static void deleteAllRecordsFromPage(Vector<Hashtable<String,Object>>pageVector,Hashtable<String,Object>deleteCondition,Table table) throws IOException, ClassNotFoundException {
+    public static void deleteAllRecordsFromPage(Vector<Hashtable<String,Object>>pageVector,Hashtable<String,Object>deleteCondition,Table table)  {
         for (int i = 1; i <pageVector.size() ; i++) {
             Hashtable<String,Object> record = pageVector.get(i);
             if(checkIfDelete(record,deleteCondition)){
                 deleteRecord(pageVector,record,table);
+                i--;
             }
 
         }
+        writeVectorToPageFile(pageVector);
     }
 
-    public static void deleteAllRecordsFromOverflowPages(ArrayList<Vector<Hashtable<String,Object>>>overFlowArray,Hashtable<String,Object>deleteCondition,Table table) throws IOException, ClassNotFoundException {
+    public static void deleteAllRecordsFromOverflowPages(ArrayList<Vector<Hashtable<String,Object>>>overFlowArray,Hashtable<String,Object>deleteCondition,Table table)  {
         for (int i = 0; i <overFlowArray.size() ; i++) {
             Vector<Hashtable<String, Object>> overflowPageVector = overFlowArray.get(i);
             deleteAllRecordsFromPage(overflowPageVector,deleteCondition,table);
-
+            writeVectorToPageFile(overflowPageVector);
         }
 
     }
@@ -657,13 +671,13 @@ public class DBApp implements DBAppInterface{
 
 
 
-    public static void deleteOverflowPages(ArrayList<Vector<Hashtable<String,Object>>> overflowPages) throws IOException, ClassNotFoundException {
+    public static void deleteOverflowPages(ArrayList<Vector<Hashtable<String,Object>>> overflowPages,Table table)  {
 
 
 
         for (int i = 0; i < overflowPages.size(); i++) {
             if(checkIfPageIsEmpty(overflowPages.get(i))){
-                modifyHeaderThenDeleteOverflowPage(overflowPages.get(i));
+                modifyHeaderThenDeleteOverflowPage(overflowPages.get(i),table);
                 overflowPages.remove(i);
                 i--;
             }
@@ -674,10 +688,11 @@ public class DBApp implements DBAppInterface{
 
 
 
-    public static void modifyHeaderThenDeleteOverflowPage(Vector<Hashtable<String,Object>> overflowVector) throws IOException, ClassNotFoundException {
+    public static void modifyHeaderThenDeleteOverflowPage(Vector<Hashtable<String,Object>> overflowVector,Table table)  {
         Hashtable<String, Object> header = (Hashtable<String, Object>) overflowVector.get(0);
+        String pageName = (String) header.get("pageName");
         String previousPage = (String) header.get("isOverflowOf");
-        String nextPage = (String) header.get("pageName");
+        String nextPage = (String) header.get("overflowPageName");
 
         String previousPagePath=getPagePath(previousPage);
         String nextPagePath = getPagePath(nextPage);
@@ -689,20 +704,37 @@ public class DBApp implements DBAppInterface{
         Hashtable<String, Object> nextPageHeader = (Hashtable<String, Object>) nextPagePathVector.get(0);
 
         nextPageHeader.put("isOverFlowOf",previousPage);
-        previousPageHeader.put("pageName",nextPage);
+        previousPageHeader.replace("overflowPageName",nextPage);
 
+        deletePage(pageName,table);
 
 
     }
 
 
 
-    public static void switchMainPageWithOverflow(Vector<Hashtable<String,Object>> pageVector) throws IOException, ClassNotFoundException {
-        ArrayList<Vector<Hashtable<String,Object>>> overflowPages = getOverflowPages(pageVector);
+
+
+
+        public static void switchMainPageWithOverflow(Vector<Hashtable<String,Object>> pageVector,ArrayList<Vector<Hashtable<String,Object>>> overflowPages,Table table)  {
         //check if this is correct
-        pageVector=overflowPages.get(0);
+        Vector<Hashtable<String, Object>> overflowPage = overflowPages.get(0);
+        moveAllRecords(overflowPage,pageVector);
+        modifyHeaderThenDeleteOverflowPage(overflowPage,table);
 
     }
+    public static void moveAllRecords(Vector<Hashtable<String,Object>> moveFrom, Vector<Hashtable<String, Object>> moveTo){
+        for (int i = 0; i < moveFrom.size(); i++) {
+            Hashtable<String,Object> record = moveFrom.get(i);
+            moveTo.add(record);
+            
+        }
+
+    }
+
+  
+
+
 
     public static void modifyHeaderdelete(Vector<Hashtable<String,Object>> pageVector,Table table) throws IOException, ClassNotFoundException {
         Hashtable<String, Object> header = (Hashtable<String, Object>) pageVector.get(0);
@@ -974,7 +1006,7 @@ public class DBApp implements DBAppInterface{
         String newPagePath = createPage(table);
         Vector<Hashtable<String,Object>> pageVector =  readVectorFromPageFile(newPagePath);
         pageVector.add(colNameValue);
-        modifyHeaderInsert(pageVector,table);
+        modifyHeader(pageVector,table);
         writeVectorToPageFile(pageVector);
     }
 
@@ -993,9 +1025,12 @@ public class DBApp implements DBAppInterface{
             }
     }
 
-    //takes pageVector and and record to be inserted and modify the header
-    public static void modifyHeaderInsert(Vector<Hashtable<String,Object>> pageVector,Table table){
+    //takes pageVector and  and modify the header
+    public static void modifyHeader(Vector<Hashtable<String,Object>> pageVector, Table table){
         Hashtable<String,Object> header = (Hashtable<String, Object>) pageVector.get(0);
+        if(pageVector.size()==1){
+            return;
+        }
         String clusteringColumn  = table.getClusteringColumn();
         Comparable maxKeyHeader = (Comparable) header.get("maxKey");
         Comparable minKeyHeader = (Comparable) header.get("minKey");
@@ -1225,13 +1260,18 @@ public class DBApp implements DBAppInterface{
 
 
 
-        public static void writeVectorToPageFile(Vector<Hashtable<String,Object>> vector) throws IOException {
+        public static void writeVectorToPageFile(Vector<Hashtable<String,Object>> vector)  {
             String pageName = getPageNameFromHeader(vector);
             String pagePath = getPagePath(pageName);
-            FileOutputStream fileOut = new FileOutputStream(pagePath);
-            ObjectOutputStream objectOut = new ObjectOutputStream(fileOut);
-            objectOut.writeObject(vector);
-            objectOut.close();
+            try {
+                FileOutputStream fileOut = new FileOutputStream(pagePath);
+                ObjectOutputStream objectOut = new ObjectOutputStream(fileOut);
+                objectOut.writeObject(vector);
+                objectOut.close();
+            }
+            catch (IOException e){
+                e.printStackTrace();
+            }
 
         }
 
@@ -1245,11 +1285,28 @@ public class DBApp implements DBAppInterface{
         }
 
 
-        public static Vector readVectorFromPageFile(String pagePath) throws IOException, ClassNotFoundException {
-        FileInputStream fileIn =  new FileInputStream(pagePath);
-        ObjectInputStream objectIn =  new ObjectInputStream(fileIn);
-        Vector retVector = (Vector) objectIn.readObject();
-         return retVector;
+        public static Vector readVectorFromPageFile(String pagePath) {
+            FileInputStream fileIn = null;
+            try {
+                fileIn = new FileInputStream(pagePath);
+            } catch (FileNotFoundException e) {
+                e.printStackTrace();
+            }
+            ObjectInputStream objectIn = null;
+            try {
+                objectIn = new ObjectInputStream(fileIn);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+            Vector retVector = null;
+            try {
+                retVector = (Vector) objectIn.readObject();
+            } catch (IOException e) {
+                e.printStackTrace();
+            } catch (ClassNotFoundException e) {
+                e.printStackTrace();
+            }
+            return retVector;
         }
 
     public static int binarySearchForKey (Vector<Hashtable<String,Object>> vector, Comparable searchKey,String clustrColumn){
@@ -1309,7 +1366,7 @@ public class DBApp implements DBAppInterface{
                 return low;
     }
 
-    public static ArrayList<Vector> getPageToSearchIn(String clusteringKeyValue ,ArrayList<String>  pages ,Table table) throws IOException, ClassNotFoundException {
+    public static ArrayList<Vector> getPageToSearchIn(String clusteringKeyValue ,ArrayList<String>  pages ,Table table)  {
 
         ArrayList<Vector> retArray =  new ArrayList<>();
         for (int i = 0;i<pages.size();i++) {
@@ -1389,31 +1446,55 @@ public class DBApp implements DBAppInterface{
         return date;
     }
 
-    public static void main(String[] args) throws DBAppException, IOException, ClassNotFoundException {
-        String strTableName = "Student";
-        DBApp dbApp = new DBApp( );
+//    public static void main(String[] args) throws DBAppException, IOException, ClassNotFoundException {
+//        String strTableName = "Student";
+//        DBApp dbApp = new DBApp( );
+//        dbApp.init();
+//
 //        Hashtable htblColNameType = new Hashtable( ); htblColNameType.put("id", "java.lang.Integer");
 //        htblColNameType.put("name", "java.lang.String");
-//        htblColNameType.put("gpa", "java.lang.double");
+//        htblColNameType.put("gpa", "java.lang.Double");
 //        Hashtable<String,String> htblColNameMin = new Hashtable( );
 //        Hashtable<String,String> htblColNameMax = new Hashtable( );
-//        htblColNameMin.put("name","0");
+//        htblColNameMin.put("name","A");
 //        htblColNameMin.put("gpa","0");
 //        htblColNameMin.put("id","0");
 //
-//        htblColNameMax.put("name","0");
+//        htblColNameMax.put("name","AAAAAAAA");
 //        htblColNameMax.put("gpa","4");
 //        htblColNameMax.put("id","313242");
-//
-//
-//
-//
+////
+////
+////
+////
 //        dbApp.createTable( strTableName, "id", htblColNameType,htblColNameMin,htblColNameMax );
-//          dbApp.init();
+////        dbApp.insertIntoTable(str);
+////          dbApp.init();
 //        Hashtable<String,Object> testHash = new Hashtable<>();
 //        testHash.put("id",1);
-//        testHash.put("name","Ahmed");
-//        testHash.put("gpa","5.0");
+//        testHash.put("name","AA");
+//        testHash.put("gpa",2.0);
+//        Hashtable<String,Object> testHash2 = new Hashtable<>();
+//        testHash2.put("id",2);
+//        testHash2.put("name","A");
+//        testHash2.put("gpa",2.0);
+//        Hashtable<String,Object> testHash3 = new Hashtable<>();
+//        testHash3.put("id",3);
+//        testHash3.put("name","AA");
+//        testHash3.put("gpa",2.0);
+//
+//        dbApp.insertIntoTable(strTableName,testHash2);
+//        dbApp.insertIntoTable(strTableName,testHash);
+//        dbApp.insertIntoTable(strTableName,testHash3);
+//        Vector v =readVectorFromPageFile(getPagePath("Student0.class"));
+//        Hashtable<String,Object> testHash1 = new Hashtable<>();
+////        testHash1.put("id",1);
+//        testHash1.put("name","AA");
+////        testHash1.put("gpa",3.0);
+//        dbApp.deleteFromTable(strTableName,testHash1);
+//        v =readVectorFromPageFile(getPagePath("Student0.class"));
+
+
 //        insertIntoEmptyTable(test,testHash);
 //        Vector<Hashtable<String,Object>> vector = readVectorFromPageFile(getPagePath("Student",0));
 
@@ -1494,6 +1575,6 @@ public class DBApp implements DBAppInterface{
 //
 //
 
-    }
+//    }
 
 }
