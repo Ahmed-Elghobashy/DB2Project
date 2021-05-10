@@ -127,6 +127,7 @@ public class DBApp implements DBAppInterface{
                  if(!checkIfPageIsFull(overflowPageVector)){
                      insertToPage(overflowPageVector,colNameValue,table);
                      modifyMainPageVectorHeadeAfterInsertOverflow(mainPageVector,colNameValue,table);
+                     writeVectorToPageFile(overflowPageVector);
                      writeVectorToPageFile(mainPageVector);
                      return;
                  }
@@ -1135,14 +1136,15 @@ public class DBApp implements DBAppInterface{
               int parentOverflowNumver = getOverFlowNumber(parentPageName);
               overFlowNumber=parentOverflowNumver+1;
           }
-
           overflowPageName=getOverflowPageName(parentPageName,overFlowNumber);
           overflowPagePath=getPagePath(overflowPageName);
           createPageFile(overflowPagePath);
           Vector<Hashtable<String,Object>> overflowPageVector = new Vector<>();
           createHeaderForOverflowPage(overflowPageVector,parentPageName,overflowPageName);
           writeVectorToPageFile(overflowPageVector);
-          return overflowPageVector;
+          parentPageHeader.replace("overflowPageName",overflowPageName);
+          writeVectorToPageFile(parentPage);
+            return overflowPageVector;
         }
 
     private static String getOverflowPageName(String parentPageName, int overFlowNumber) {
@@ -1445,7 +1447,7 @@ public class DBApp implements DBAppInterface{
         return date;
     }
 
-//    public static void main(String[] args) throws DBAppException, IOException, ClassNotFoundException {
+    public static void main(String[] args) throws DBAppException, IOException, ClassNotFoundException {
 //        String strTableName = "Student";
 //        DBApp dbApp = new DBApp( );
 //        dbApp.init();
@@ -1492,12 +1494,12 @@ public class DBApp implements DBAppInterface{
 ////        testHash1.put("gpa",3.0);
 //        dbApp.deleteFromTable(strTableName,testHash1);
 //        v =readVectorFromPageFile(getPagePath("Student0.class"));
-
-
+//
+//
 //        insertIntoEmptyTable(test,testHash);
 //        Vector<Hashtable<String,Object>> vector = readVectorFromPageFile(getPagePath("Student",0));
-
-
+//
+//
 //        Hashtable<String,Object> h1 = new Hashtable<>();
 //        h1.put("id",0);
 //        Hashtable<String,Object> h2 = new Hashtable<>();
@@ -1518,8 +1520,8 @@ public class DBApp implements DBAppInterface{
 //        vector.add(h4);
 //        vector.add(h5);
 //        vector.add(h6);
-
-       // System.out.print(binarySearchForInsertIndex(vector,7,0,vector.size(),"id"));
+//
+//        System.out.print(binarySearchForInsertIndex(vector,7,0,vector.size(),"id"));
 //
 //        String pageName = "Table0.class";
 //        System.out.print(getOverflowPageName(pageName,12));
@@ -1571,9 +1573,10 @@ public class DBApp implements DBAppInterface{
 //
 //    ArrayList<Vector> rt =    getPageToInsertIn(col1,test.getPages(),test);
 //
-//
-//
 
-//    }
+        Vector v = readVectorFromPageFile(getPagePath("transcripts0_overflow_0.class"));
+//        ArrayList m = getOverflowPages(v);
+
+    }
 
 }

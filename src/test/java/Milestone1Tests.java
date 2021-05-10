@@ -113,7 +113,7 @@ public class Milestone1Tests {
     public void testRecordInsertions() throws Exception {
         DBApp dbApp = new DBApp();
         dbApp.init();
-        int limit = 500;
+        int limit = 1000;
 
         insertStudentRecords(dbApp, limit);
         insertCoursesRecords(dbApp, limit);
