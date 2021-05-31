@@ -20,7 +20,20 @@ public class DBApp implements DBAppInterface{
 
     //notes : we read pages to get the min and max
 
-   // to do
+    //naming convention for index :Index_[tablename]_[ColNamesindexed].class
+    //example : Index_Student_GPA_ID.class ;
+
+    //naming convention for overflow bucket : [tablename]Bucket[bucketNum]_overflow_[overflow number].class
+    //naming convenvtion for bucket: [tablename]Bucket[BucketNum]__[ColNamesindexed].class
+    //     example : StudentBucket0.class ;
+
+    //bucket has header
+    // Hashtable :: Key:overflowBucketName , Value : "[].class"
+    //              key:overflowOf   ,Value: ".class"
+    //              key:bucketName ,     Value: "[].class"
+
+
+    // to do
    // read config--
    // Check inputs and throw input and throw exceptions
    // test getPagesToInsertIn method
@@ -33,9 +46,16 @@ public class DBApp implements DBAppInterface{
    // modify parent header after insertion to overflow  page
    // test update
 
+    //GridIndex
 
-    //low+1 == high
-   // 0 10 20 30 40 50 60 70 80 90 100
+    //to do M2
+    // Fix overflow errors /optimize overflow
+    // index in intitalizeTables
+    // max min in Table insertion/deleteting/updating
+    // intialzie ranges in grid index
+    //
+
+
 
 
     //does the header count in the max rows ?
@@ -48,14 +68,21 @@ public class DBApp implements DBAppInterface{
     private static  final String pagesDirectoryPath = "src/main/resources/data" ;
     private static int maxRows ;
     private static int maxIndexBucket;
+     static final String dateType="java.util.Date";
+     static final String stringType="java.lang.String";
+     static final String intType="java.lang.Integer";
+     static final String doubleType="java.lang.Double";
+
 
     private static final ArrayList<Table> tables = new ArrayList<Table>();
+    private static final Vector<GridIndex> indices = new Vector<>();
 
     public void init()  {
 
 
         try {
             intializeTables();
+            //intializIndeces();
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -357,13 +384,13 @@ public class DBApp implements DBAppInterface{
 
     private static boolean checkInputType(Comparable colValue, String colType) {
 
-        if(colValue instanceof Date && colType.equals("java.util.Date"))
+        if(colValue instanceof Date && colType.equals(dateType))
             return true;
-        if(colValue instanceof Integer && colType.equals("java.lang.Integer"))
+        if(colValue instanceof Integer && colType.equals(intType))
             return true;
-        if(colValue instanceof Double && colType.equals("java.lang.Double"))
+        if(colValue instanceof Double && colType.equals(doubleType))
             return true;
-        if(colValue instanceof String && colType.equals("java.lang.String"))
+        if(colValue instanceof String && colType.equals(stringType))
             return true;
 
         return false;
@@ -470,7 +497,9 @@ public class DBApp implements DBAppInterface{
 
 
     public void createIndex(String strTableName,String[] strarrColName)throws DBAppException{
-
+        Table table =getTable(strTableName);
+        GridIndex index = new GridIndex(table,strarrColName);
+        indices.add(index);
 
     }
 
@@ -1066,7 +1095,7 @@ public class DBApp implements DBAppInterface{
     public static boolean checkPageTable(Table table,String pageName)
     {
         String  tableName = table.getName();
-        return (pageName.startsWith(tableName) && !pageName.contains("_overflow")) ;
+        return (pageName.startsWith(tableName) && !pageName.contains("_overflow")) &&!pageName.contains("Bucket") ;
     }
 
     public static String[] listPages(){
@@ -1104,7 +1133,109 @@ public class DBApp implements DBAppInterface{
             return null;
         }
 
-        //return page path
+             static Vector createBucket(GridIndex index)
+        {
+            String bucketName=getBucketName(index);
+            String bucketPath = getBucketPath(bucketName);
+            Vector<Object> bucket=null;
+            try {
+                createPageFile(bucketPath);
+                bucket = new Vector<>();
+                createBucketHeader(bucketName,bucket);
+                writeVectorToPageFile(bucket);
+                index.addBucketToIndex(bucketName);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+            return bucket;
+        }
+
+
+    private static String getBucketName(GridIndex index) {
+        Table table =index.getTable();
+        String tableName= table.getName();
+        int bucketNum= index.getBucketsNum();
+
+        return tableName+"Bucket"+bucketNum+".class";
+    }
+
+    static String getBucketPath(String bucketName){
+
+        return pagesDirectoryPath +"/"+bucketName;
+    }
+
+    static Hashtable createBucketHeader(String bucketName,Vector bucketVector) {
+        Hashtable<String,String> header = new Hashtable<>();
+        header.put("bucketName",bucketName);
+        bucketVector.add(header);
+        return header;
+
+    }
+
+
+        static Vector createOverflowBucket(GridIndex index, Vector parentBucket){
+
+            String overflowBucketName = getOverflowBucketName(parentBucket);
+            String parentBucketName = getBucketNameFromHeader(parentBucket);
+            Vector overflowBucket = null;
+
+            try {
+                createPageFile(overflowBucketName);
+                overflowBucket=new Vector();
+                createHeaderForOverflowBucket(overflowBucket,overflowBucketName,parentBucketName);
+                modifyParentBucketHeaderAfterAddingOverflow(overflowBucketName,parentBucket);
+                writeVectorToPageFile(parentBucket);
+                writeVectorToPageFile(overflowBucket);
+
+                //addBucketToIndex(overflowBucket,index);
+
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+
+            return overflowBucket;
+        }
+
+    private static String getBucketNameFromHeader(Vector parentBucket) {
+        Hashtable<String,String> header = (Hashtable<String, String>) parentBucket.get(0);
+
+
+        return header.get("bucketName");
+    }
+
+    private static void modifyParentBucketHeaderAfterAddingOverflow(String overflowBucketName,Vector parentBucket) {
+        Hashtable<String,String> header = (Hashtable<String, String>) parentBucket.get(0);
+
+        header.put("overflowBucketName",overflowBucketName);
+
+    }
+
+    private static void createHeaderForOverflowBucket(Vector overflowBucket,String overflowBucketName, String parentBucketName) {
+        Hashtable<String,String> header = new Hashtable<>();
+        header.put("bucketName",overflowBucketName);
+        header.put("overflowOf",parentBucketName);
+        overflowBucket.add(header);
+
+
+    }
+
+    private static String getOverflowBucketName(Vector parentBucket) {
+        Hashtable<String,String> parentBucketHeader =(Hashtable<String, String>) parentBucket.get(0);
+        String parentBucketName = parentBucketHeader.get("bucketName");
+        int overflowBucketNumber;
+
+        if(parentBucketHeader.get("overflowOf")==null)
+            overflowBucketNumber=0;
+        else
+        overflowBucketNumber= getOverFlowNumber(parentBucketName)+1;
+        String parentBucketNameWithoutClass = parentBucketName.split(".class")[0];
+
+        return parentBucketNameWithoutClass+"_"+"overflow"+overflowBucketNumber+".class";
+
+    }
+
+
+    //return page vector
         public static Vector  createPage(Table table) throws IOException {
 
             int pageNumber = table.getPages().size();
@@ -1133,8 +1264,8 @@ public class DBApp implements DBAppInterface{
             overFlowNumber=0;
           }
           else{
-              int parentOverflowNumver = getOverFlowNumber(parentPageName);
-              overFlowNumber=parentOverflowNumver+1;
+              int parentOverflowNumber = getOverFlowNumber(parentPageName);
+              overFlowNumber=parentOverflowNumber+1;
           }
           overflowPageName=getOverflowPageName(parentPageName,overFlowNumber);
           overflowPagePath=getPagePath(overflowPageName);
@@ -1156,6 +1287,20 @@ public class DBApp implements DBAppInterface{
     private static int getOverFlowNumber(String parentPageName) {
         int overflowNumber=0;
         //.class length is 6
+//        int indexOfOverflowNumber = parentPageName.length()-7;
+        String[] splitted = parentPageName.split("_");
+        // [overflowNumber].class
+        String overFlowDotClass = splitted[splitted.length-1];
+        // overflowNumber string
+        String[] temp = overFlowDotClass.split(".class");
+        String overflowNumberString = temp[0];
+        overflowNumber = Integer.parseInt(overflowNumberString);
+        return overflowNumber;
+    }
+
+    private static int getOverFlowNumberMod(String parentPageName) {
+        int overflowNumber=0;
+        //.class length is 6
         int indexOfOverflowNumber = parentPageName.length()-7;
         String[] splitted = parentPageName.split("_");
         // [overflowNumber].class
@@ -1166,6 +1311,8 @@ public class DBApp implements DBAppInterface{
         overflowNumber = Integer.parseInt(overflowNumberString);
         return overflowNumber;
     }
+
+
 
 
     public static void createHeaderForNewPage(Vector<Hashtable<String,Object>> pageVector ,String pageName){
@@ -1261,7 +1408,7 @@ public class DBApp implements DBAppInterface{
 
 
 
-        public static void writeVectorToPageFile(Vector<Hashtable<String,Object>> vector)  {
+        public static void writeVectorToPageFile(Vector vector)  {
             String pageName = getPageNameFromHeader(vector);
             String pagePath = getPagePath(pageName);
             try {
@@ -1415,14 +1562,14 @@ public class DBApp implements DBAppInterface{
     public static Comparable castTo (String valueString,String type)
     {
         Comparable ret=valueString ;
-        if(type.equals("java.lang.Integer"))
+        if(type.equals(intType))
         {
             ret=Integer.parseInt(valueString);
         }
-        else if(type.equals("java.lang.Double")){
+        else if(type.equals(doubleType)){
             ret=Double.parseDouble(valueString);
         }
-        else if(type.equals("java.util.Date"))
+        else if(type.equals(dateType))
         {
             ret=formatDate(valueString);
         }
@@ -1430,10 +1577,10 @@ public class DBApp implements DBAppInterface{
         return ret;
     }
 
-    public static boolean inDateFormat(String valueString){
-
-        return false;
-    }
+//    public static boolean inDateFormat(String valueString){
+//
+//        return false;
+//    }
 
     public static Date formatDate(String dateString)
     {
@@ -1445,6 +1592,12 @@ public class DBApp implements DBAppInterface{
         Date date = new Date(year-1900,month-1,day);
 
         return date;
+    }
+
+    public static void insertToIndex(Hashtable<String,Object> record,GridIndex index){
+
+        //
+
     }
 
     public static void main(String[] args) throws DBAppException, IOException, ClassNotFoundException {
@@ -1574,8 +1727,9 @@ public class DBApp implements DBAppInterface{
 //    ArrayList<Vector> rt =    getPageToInsertIn(col1,test.getPages(),test);
 //
 
-        Vector v = readVectorFromPageFile(getPagePath("transcripts0_overflow_0.class"));
+//        Vector v = readVectorFromPageFile(getPagePath("transcripts0_overflow_0.class"));
 //        ArrayList m = getOverflowPages(v);
+
 
     }
 

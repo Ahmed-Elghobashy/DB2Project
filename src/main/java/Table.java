@@ -6,8 +6,10 @@ import java.util.Hashtable;
 public class Table {
     private String tableName;
     private String clusteringColumn;
+    // max min
     // key:column Name value:type
     private ArrayList<Hashtable<String, String>> columnType = new ArrayList<>();
+    private ArrayList<Hashtable<String, Boolean>> columnIndexed = new ArrayList<>();
     private ArrayList<Hashtable<String, Comparable>> columMax = new ArrayList<>();
     private ArrayList<Hashtable<String, Comparable>> columMin = new ArrayList<>();
     private ArrayList<String> pages;
@@ -96,6 +98,14 @@ public class Table {
 
     }
 
+
+    public ArrayList<Hashtable<String, Boolean>> getColumnIndexed() {
+        return columnIndexed;
+    }
+
+    public void setColumnIndexed(ArrayList<Hashtable<String, Boolean>> columnIndexed) {
+        this.columnIndexed = columnIndexed;
+    }
 
     public void setColumnType(ArrayList<Hashtable<String,String>> colsType){
         columnType.addAll(colsType);
