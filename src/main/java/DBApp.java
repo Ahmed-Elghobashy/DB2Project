@@ -77,6 +77,9 @@ public class DBApp implements DBAppInterface{
     private static final ArrayList<Table> tables = new ArrayList<Table>();
     private static final Vector<GridIndex> indices = new Vector<>();
 
+
+
+
     public void init()  {
 
 
@@ -1142,8 +1145,7 @@ public class DBApp implements DBAppInterface{
                 createPageFile(bucketPath);
                 bucket = new Vector<>();
                 createBucketHeader(bucketName,bucket);
-                writeVectorToPageFile(bucket);
-                index.addBucketToIndex(bucketName);
+                writeBucketVectorToFile(bucket);
             } catch (IOException e) {
                 e.printStackTrace();
             }
@@ -1173,7 +1175,7 @@ public class DBApp implements DBAppInterface{
     }
 
 
-        static Vector createOverflowBucket(GridIndex index, Vector parentBucket){
+        static Vector<Object> createOverflowBucket(GridIndex index, Vector parentBucket){
 
             String overflowBucketName = getOverflowBucketName(parentBucket);
             String parentBucketName = getBucketNameFromHeader(parentBucket);
@@ -1184,8 +1186,8 @@ public class DBApp implements DBAppInterface{
                 overflowBucket=new Vector();
                 createHeaderForOverflowBucket(overflowBucket,overflowBucketName,parentBucketName);
                 modifyParentBucketHeaderAfterAddingOverflow(overflowBucketName,parentBucket);
-                writeVectorToPageFile(parentBucket);
-                writeVectorToPageFile(overflowBucket);
+                writeBucketVectorToFile(parentBucket);
+                writeBucketVectorToFile(overflowBucket);
 
                 //addBucketToIndex(overflowBucket,index);
 
@@ -1196,21 +1198,21 @@ public class DBApp implements DBAppInterface{
             return overflowBucket;
         }
 
-    private static String getBucketNameFromHeader(Vector parentBucket) {
-        Hashtable<String,String> header = (Hashtable<String, String>) parentBucket.get(0);
+     static String getBucketNameFromHeader(Vector bucket) {
+        Hashtable<String,String> header = (Hashtable<String, String>) bucket.get(0);
 
 
         return header.get("bucketName");
     }
 
-    private static void modifyParentBucketHeaderAfterAddingOverflow(String overflowBucketName,Vector parentBucket) {
+     static void modifyParentBucketHeaderAfterAddingOverflow(String overflowBucketName,Vector parentBucket) {
         Hashtable<String,String> header = (Hashtable<String, String>) parentBucket.get(0);
 
         header.put("overflowBucketName",overflowBucketName);
 
     }
 
-    private static void createHeaderForOverflowBucket(Vector overflowBucket,String overflowBucketName, String parentBucketName) {
+     static void createHeaderForOverflowBucket(Vector overflowBucket,String overflowBucketName, String parentBucketName) {
         Hashtable<String,String> header = new Hashtable<>();
         header.put("bucketName",overflowBucketName);
         header.put("overflowOf",parentBucketName);
@@ -1219,7 +1221,7 @@ public class DBApp implements DBAppInterface{
 
     }
 
-    private static String getOverflowBucketName(Vector parentBucket) {
+     static String getOverflowBucketName(Vector parentBucket) {
         Hashtable<String,String> parentBucketHeader =(Hashtable<String, String>) parentBucket.get(0);
         String parentBucketName = parentBucketHeader.get("bucketName");
         int overflowBucketNumber;
@@ -1411,6 +1413,13 @@ public class DBApp implements DBAppInterface{
         public static void writeVectorToPageFile(Vector vector)  {
             String pageName = getPageNameFromHeader(vector);
             String pagePath = getPagePath(pageName);
+            writeVectorToFile(vector,pagePath);
+
+        }
+
+
+        static void writeVectorToFile(Vector vector,String pagePath)
+        {
             try {
                 FileOutputStream fileOut = new FileOutputStream(pagePath);
                 ObjectOutputStream objectOut = new ObjectOutputStream(fileOut);
@@ -1420,7 +1429,6 @@ public class DBApp implements DBAppInterface{
             catch (IOException e){
                 e.printStackTrace();
             }
-
         }
 
         public static String getPagePath(String tableName,int pageNumber){
@@ -1594,11 +1602,90 @@ public class DBApp implements DBAppInterface{
         return date;
     }
 
-    public static void insertToIndex(Hashtable<String,Object> record,GridIndex index){
+    public static void insertToBucket(Vector<Object> bucket, BucketIndex bucketIndex,GridIndex index) {
+        if(bucketIsFull(bucket))
+        {
+            Vector<Object> overflowBucketToInsertin = getOverflowBucketToInsertIn(bucket,index);
+            overflowBucketToInsertin.add(bucketIndex);
+            writeVectorToPageFile(overflowBucketToInsertin);
+        }
+        else{
+            bucket.add(bucketIndex);
+            writeBucketVectorToFile(bucket);
+        }
+    }
 
-        //
+    private static Vector<Object> getOverflowBucketToInsertIn(Vector<Object> bucket,GridIndex index) {
+        Vector<Vector<Object>> overflowBuckets = getOveflowBuckets(bucket);
+        for (Vector<Object> tmpBucket :
+                overflowBuckets) {
+            if(!bucketIsFull(tmpBucket))
+                return tmpBucket;
+
+        }
+        // if there are no non full overflows create one
+
+        Vector<Object> parentBucket = overflowBuckets.lastElement();
+        Vector<Object> retBucket = createOverflowBucket(index,parentBucket);
+
+        return retBucket;
 
     }
+
+    private static Vector<Vector<Object>> getOveflowBuckets(Vector<Object> bucket) {
+        Vector<Vector<Object>> overflowBuckets = new Vector<>();
+        Vector<Object> loopBucket = bucket;
+        while(hasOverflowBucket(loopBucket))
+        {
+            Vector overflowBucket = getOverflowBucket(bucket);
+            overflowBuckets.add(overflowBucket);
+            loopBucket=overflowBucket;
+        }
+
+
+        return overflowBuckets;
+    }
+
+    private static Vector getOverflowBucket(Vector<Object> bucket) {
+        Hashtable<String,String> header = (Hashtable<String, String>) bucket.get(0);
+        String overflowBucketName =header.get("overflowBucketName");
+
+        String bucketName = getBucketNameFromHeader(bucket);
+        String bucketPath= getBucketPath(bucketName);
+
+        Vector overflowBucket = readVectorFromPageFile(bucketPath);
+
+
+        return overflowBucket;
+    }
+
+    private static boolean hasOverflowBucket(Vector<Object> bucket) {
+        Hashtable<String,String> header = (Hashtable<String, String>) bucket.get(0);
+        String overflowBucketName =header.get("overflowBucketName");
+
+        if (overflowBucketName==null)
+            return false;
+        else
+            return true;
+    }
+
+    private static void writeBucketVectorToFile(Vector<Object> bucket) {
+        String bucketName =getBucketNameFromHeader(bucket);
+        String bucketPath = getBucketPath(bucketName);
+
+        writeVectorToFile(bucket,bucketPath);
+    }
+
+    private static boolean bucketIsFull(Vector<Object> bucket) {
+
+        return bucket.size()>= maxIndexBucket+1;
+    }
+
+//    public static void insertToIndex(Hashtable<String,Object> record,GridIndex index){
+//
+//        //
+//
+//    }
 
     public static void main(String[] args) throws DBAppException, IOException, ClassNotFoundException {
 //        String strTableName = "Student";

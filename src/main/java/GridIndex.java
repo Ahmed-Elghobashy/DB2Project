@@ -1,6 +1,4 @@
-import java.awt.image.AreaAveragingScaleFilter;
 import java.io.Serializable;
-import java.util.ArrayList;
 import java.util.Hashtable;
 import java.util.Vector;
 
@@ -109,10 +107,35 @@ public class GridIndex implements Serializable   {
     }
 
 
-//    public ArrayList<Integer> getBucketIndeces(Hashtable<String,Object> colNameValue)
-//    {
-//
-//    }
+    public Vector<Integer> getBucketIndices(Hashtable<String,Object> colNameValue)
+    {
+        Vector<Integer> indices = new Vector<>();
+        Vector<Object> values = new Vector<>();
+        for (String column :
+                columnsIndexed) {
+            values.add(colNameValue.get((column)));
+        }
+
+        for (int i = 0; i <rangesColumns.size(); i++) {
+            Comparable value = (Comparable) values.get(i);
+            IndexRange[] tempArray = rangesColumns.get(i);
+            for (int j = 0; j <tempArray.length; j++) {
+                IndexRange range = tempArray[j];
+                    if(range.isInRange(value))
+                    {
+                        indices.add(j);
+                        break;
+                    }
+
+            }
+
+
+        }
+
+
+        return indices;
+
+    }
 
 
 
@@ -183,16 +206,17 @@ public class GridIndex implements Serializable   {
     }
 
 
+
     //recursive method to get to the cell where the BucketIndex is
     // will return null if the cell is empty
 
-    public String getBucketIndexFromIndex(ArrayList<Integer> indeces){
+    public String getBucketFromIndex(Vector<Integer> indeces){
 
         return getBucketFromIndexRec(indeces,gridIndex);
         
     }
 
-    public String getBucketFromIndexRec(ArrayList<Integer> indeces, Object[] array){
+    public String getBucketFromIndexRec(Vector<Integer> indeces, Object[] array){
 
         if(indeces.size()==1) {
             int index =indeces.get(0);
@@ -206,17 +230,17 @@ public class GridIndex implements Serializable   {
     }
 
 
-    public void deleteBucketFromIndex(ArrayList<Integer> indeces)
+    public void deleteBucketFromIndex(Vector<Integer> indeces)
     {
-        putBucketInCell(indeces,null);
+        putBucketInCell(null,indeces);
     }
 
-    public void putBucketInCell(ArrayList<Integer> indeces, String bucket)
+    public void putBucketInCell( String bucket,Vector<Integer> indeces)
     {
         putBucketInCellRec(indeces,bucket,gridIndex);
     }
 
-    private void putBucketInCellRec(ArrayList<Integer> indeces, String bucketName, Object[] array) {
+    private void putBucketInCellRec(Vector<Integer> indeces, String bucketName, Object[] array) {
         if(indeces.size()==1)
         {
             int index=indeces.get(0);
@@ -233,9 +257,59 @@ public class GridIndex implements Serializable   {
         }
     }
 
-    void addBucketToIndex(String bucket){
-        buckets.add(bucket);
+     void inesrtRecordToIndex(Hashtable<String,Object> record,String pageName,int indexInPage)
+    {
+        Vector<Integer> indices =getBucketIndices(record);
+        //bucketName may be null !!
+        String bucketName = getBucketFromIndex(indices);
+        Vector<Object> bucket = getBucketToInsertIn(bucketName,indices);
+
+        BucketIndex bucketIndex = new BucketIndex(columnsIndexed,pageName,indexInPage);
+        DBApp.insertToBucket(bucket,bucketIndex,this);
+
+
+
     }
+
+    private Vector<Object> getBucketToInsertIn(String bucketName, Vector<Integer> indices) {
+        Vector<Object> bucket = null;
+
+        if (bucketName==null)
+        {
+            bucket=addBucketToIndex(indices);
+        }
+        else {
+            bucket=readBucketFromFile(bucketName);
+        }
+
+        return bucket;
+    }
+
+
+    //creates buckets and inserts it to index
+    Vector<Object> addBucketToIndex(Vector<Integer> indices)
+    {
+        Vector<Object> bucket = null;
+        bucket= DBApp.createBucket(this);
+        String bucketName = DBApp.getBucketNameFromHeader(bucket);
+        putBucketInCell(bucketName,indices);
+
+        return bucket;
+    }
+
+
+    Vector<Object> readBucketFromFile (String bucketName)
+    {
+        Vector bucket = null;
+        String bucketPath = DBApp.getBucketPath(bucketName);
+        bucket = DBApp.readVectorFromPageFile(bucketPath);
+
+        return bucket;
+    }
+
+
+
+
 
     public Table getTable() {
         return table;
