@@ -1,14 +1,13 @@
+import java.io.Serializable;
 import java.util.Hashtable;
 
-public class BucketIndex {
+public class BucketIndex implements Serializable {
     String[] columns;
     String pageName;
-    int index;
 
-    public BucketIndex(String[] columns, String pageName, int index) {
+    public BucketIndex(String[] columns, String pageName) {
         this.columns = columns;
         this.pageName = pageName;
-        this.index = index;
     }
 
     public String getPageName() {
@@ -19,11 +18,5 @@ public class BucketIndex {
         this.pageName = pageName;
     }
 
-    public int getIndex() {
-        return index;
-    }
 
-    public void setIndex(int index) {
-        this.index = index;
-    }
 }

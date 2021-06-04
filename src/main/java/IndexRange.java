@@ -1,4 +1,6 @@
-public class IndexRange {
+import java.io.Serializable;
+
+public class IndexRange implements Serializable {
     String columnName;
     Comparable min;
     Comparable max;
@@ -28,6 +30,16 @@ public class IndexRange {
 
     public boolean isInRange(Comparable key)
     {
+        if(key instanceof String)
+        {
+            key=GridIndex.getSumUnicode((String) key) + 0.0;
+
+        }
+        else if(key instanceof Integer)
+        {
+            key= ((Integer)key) + 0.0;
+        }
+
         if(key.compareTo(max)<=0 && key.compareTo(min)>=0)
             return true;
         else
