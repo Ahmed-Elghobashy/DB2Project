@@ -793,14 +793,171 @@ public class DBApp implements DBAppInterface{
         }
     }
 
+    public static boolean operatorChecker(String operator,Comparable record,String compareValue){
+        switch(operator){
+            case "=": return record.equals(compareValue);
+            case "!=": return !record.equals(compareValue );
+            case ">": return(record.compareTo(compareValue)>0); //record>compareValue
+            case ">=": return(record.compareTo(compareValue)>=0);
+            case "<": return(record.compareTo(compareValue)<0);
+            case "<=": return(record.compareTo(compareValue)<=0);
+            default: return false;
+        }
+    }
+
+    public static boolean conditionCheck(Hashtable<String,Object> record,String columnName,String value,String operator){
+            Comparable recordValue = (Comparable) record.get(columnName);
+            if (operatorChecker(operator,recordValue,value)){
+                return true;
+            }
+        return false;
+        }
 
 
+    public static ArrayList<Hashtable<String, Object>> searchAllRecordsFromPage(Vector<Hashtable<String,Object>>pageVector,String columnName,String value,String operator) {
+        ArrayList<Hashtable<String, Object>> records=new ArrayList<Hashtable<String, Object>>();
+        for (int i = 1; i < pageVector.size(); i++) {
+            Hashtable<String,Object> record=pageVector.get(i);
+            if(conditionCheck(record,columnName,value,operator)){
+                records.add(record);
+            }
 
+        }
+        return records;
+    }
+        public static ArrayList<Hashtable<String, Object>> searchAllRecordsFromOverflowPages(ArrayList<Vector<Hashtable<String,Object>>>overFlowArray,String columnName,String value,String operator)  {
+        ArrayList<Hashtable<String, Object>> records = new ArrayList<Hashtable<String, Object>>();
+        for (int i = 0; i <overFlowArray.size() ; i++) {
+                Vector<Hashtable<String, Object>> overflowPageVector = overFlowArray.get(i);
+            for (int j = 1; j < overflowPageVector.size(); j++) {
+                Hashtable<String, Object> record = overflowPageVector.get(i);
+                if (conditionCheck(record, columnName, value,operator)) {
+                    records.add(record);
+                }
+            }
+            }
+        return records;
+
+        }
+
+    public ArrayList<Hashtable<String, Object>> selectFromIndexedTable(SQLTerm sqlTerm,String[] arrayOperators)throws DBAppException{
+
+        return null;
+    }
+    public ArrayList<Hashtable<String, Object>> selectFromNonIndexedTable(SQLTerm sqlTerm,String[] arrayOperators)throws DBAppException{
+        Table table = getTable(sqlTerm.tableName);
+
+        if(table==null) {
+            throw new DBAppException();
+        }
+        ArrayList<String>pages = table.getPages();
+        if(pages.isEmpty()){
+            throw new DBAppException();
+        }
+        ArrayList<Hashtable<String, Object>>records=new ArrayList<Hashtable<String, Object>>();
+        for (int i = 0; i <pages.size() ; i++) {
+            String pagePath = getPagePath(pages.get(i));
+
+            Vector<Hashtable<String, Object>> pageVector = readVectorFromPageFile(pagePath);
+            ArrayList<Vector<Hashtable<String, Object>>> overflowPages = getOverflowPages(pageVector);
+            records.addAll(searchAllRecordsFromPage(pageVector,sqlTerm.columnName, sqlTerm.objValue,sqlTerm.operator));
+            records.addAll(searchAllRecordsFromOverflowPages(overflowPages, sqlTerm.columnName, sqlTerm.objValue,sqlTerm.operator));
+        }
+        return null;
+    }
+    public ArrayList<Hashtable<String, Object>> arrayOperatorGenerator(String operator,ArrayList<Hashtable<String, Object>>record,ArrayList<Hashtable<String, Object>>temp,String clusteringColumn){
+        boolean Flag=false;
+        ArrayList<Hashtable<String, Object>> returnArray=new ArrayList<Hashtable<String, Object>>();
+        if(operator.equals("OR")) {
+            for (int i = 0; i <temp.size(); i++) {
+                for(int j=0;j<record.size();j++){
+     if(temp.get(i).get(clusteringColumn).equals(record.get(j).get(clusteringColumn))){
+         Flag=true;
+     }
+             }
+                if(Flag==false){
+                    record.add(temp.get(i));
+                }
+                Flag=false;
+            }
+            return record;
+        }
+        if(operator.equals("AND")){
+
+            for (int i = 0; i <temp.size(); i++) {
+                for(int j=0;j<record.size();j++){
+                    if(temp.get(i).get(clusteringColumn).equals(record.get(j).get(clusteringColumn))){
+                        Flag=true;
+                    }
+                }
+                if(Flag==true){
+                    returnArray.add(temp.get(i));
+                }
+                Flag=false;
+            }
+            return returnArray;
+        }
+        if(operator.equals("XOR")){
+            for (int i = 0; i <temp.size(); i++) {
+                for(int j=0;j<record.size();j++){
+                    if(temp.get(i).get(clusteringColumn).equals(record.get(j).get(clusteringColumn))){
+                        Flag=true;
+                    }
+                }
+                if(Flag==false){
+                    returnArray.add(temp.get(i));
+                }
+                Flag=false;
+            }
+            for (int i = 0; i <record.size(); i++) {
+                for(int j=0;j<temp.size();j++){
+                    if(temp.get(i).get(clusteringColumn).equals(record.get(j).get(clusteringColumn))){
+                        Flag=true;
+                    }
+                }
+                if(Flag==false){
+                    returnArray.add(temp.get(i));
+                }
+                Flag=false;
+            }
+            return returnArray;
+        }
+        return null;
+        }
 
 
     public Iterator  selectFromTable(SQLTerm[] sqlTerms, String[] arrayOperators) throws DBAppException{
+        ArrayList<Hashtable<String, Object>> records = new ArrayList<Hashtable<String, Object>>();
+        ArrayList<Hashtable<String, Object>> temp= new ArrayList<Hashtable<String, Object>>();
+        boolean Indexed=false;
+    for(int i=0;i< sqlTerms.length;i++){
 
-       return null;
+        if(i==0) {
+            if (sqlTerms.checkIfIndexed(sqlTerms[i].tableName)) {
+                Indexed=true;
+                records.addAll(selectFromIndexedTable(sqlTerms[i], arrayOperators));
+            } else {
+                records.addAll(selectFromNonIndexedTable(sqlTerms[i], arrayOperators));
+            }
+        }
+        else {
+            Table table=getTable(sqlTerms[i].tableName);
+            String clusteringColumn=table.getClusteringColumn();
+            if (Indexed) {
+                temp=(selectFromIndexedTable(sqlTerms[i], arrayOperators));
+                records=(arrayOperatorGenerator(arrayOperators[i],records,temp,clusteringColumn));
+            } else {
+
+                temp=(selectFromNonIndexedTable(sqlTerms[i], arrayOperators));
+                records=(arrayOperatorGenerator(arrayOperators[i],records,temp,clusteringColumn));
+            }
+
+        }
+
+        }
+
+       Iterator iterator=records.iterator();
+       return iterator;
     }
 
 
@@ -1124,7 +1281,7 @@ public class DBApp implements DBAppInterface{
 
 
 
-      public static Table getTable(String  tableName){
+      public static Table getTable(String tableName){
 
             for (int i = 0; i <tables.size() ; i++) {
                 if(tables.get(i).getName().equals(tableName))
