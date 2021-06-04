@@ -1,4 +1,5 @@
 import java.io.Serializable;
+import java.util.ArrayList;
 import java.util.Hashtable;
 import java.util.Vector;
 
@@ -30,6 +31,13 @@ public class GridIndex implements Serializable   {
     //| record3   |
     //| record4   |
     // ------------
+
+
+    // To do
+    // read indices when opening database
+    // fill index --test
+    // fix overflow problems
+    // insert to index
     Table table;
     Vector<IndexRange[]> rangesColumns = new Vector<>();
     String[] columnsIndexed ;
@@ -37,7 +45,7 @@ public class GridIndex implements Serializable   {
     Vector<String> buckets ;
     int dimension;
     int bucketsNum;
-    String fileName ;
+    String fileName ="";
 
     public GridIndex(Table table ,String[] columnsIndexed)
     {
@@ -50,12 +58,49 @@ public class GridIndex implements Serializable   {
         intializeRanges();
         intializeGridIndex();
 
-        //fillIndex()
+        fillIndex();
+        DBApp.writeIndexToFile(this);
+
+
+    }
+
+    public void fillIndex() {
+        ArrayList<String> allPagesNames = table.getPages();
+
+        for (String pageName :
+                allPagesNames) {
+            addRecordsOfPageAndItsOverflowToIndex(pageName);
+
+        }
+    }
+
+    private void addRecordsOfPageAndItsOverflowToIndex(String pageName) {
+        String pagePath = DBApp.getPagePath(pageName);
+        Vector<Hashtable<String,Object>> pageVector = DBApp.readVectorFromPageFile(pagePath);
+        ArrayList<Vector<Hashtable<String, Object>>> overflows = DBApp.getOverflowPages(pageVector);
+
+        addRecordsOfVectorToIndex(pageVector);
+
+        for (Vector<Hashtable<String, Object>> overflow:
+        overflows){
+            addRecordsOfVectorToIndex(overflow);
+        }
+
+    }
+
+    private void addRecordsOfVectorToIndex(Vector<Hashtable<String, Object>> pageVector) {
+
+        Hashtable<String,Object> header = pageVector.get(0);
+        String pageName = (String) header.get("pageName");
+
+        for (int i = 1; i < pageVector.size(); i++) {
+            Hashtable<String, Object> record = pageVector.get(i);
+            this.inesrtRecordToIndex(record,pageName);
+        }
 
     }
 
     private void setFileName() {
-        String fileName = "";
         String tableName = table.getName();
         fileName += tableName+"Index";
 
@@ -75,7 +120,7 @@ public class GridIndex implements Serializable   {
 
     private  void intializeGridIndex(){
         gridIndex= new Object[10];
-        intializeGridIndex(0,gridIndex);
+        intializeGridIndex(1,gridIndex);
 
     }
     private void intializeGridIndex(int level, Object[] array) {
@@ -118,17 +163,8 @@ public class GridIndex implements Serializable   {
 
         for (int i = 0; i <rangesColumns.size(); i++) {
             Comparable value = (Comparable) values.get(i);
-            IndexRange[] tempArray = rangesColumns.get(i);
-            for (int j = 0; j <tempArray.length; j++) {
-                IndexRange range = tempArray[j];
-                    if(range.isInRange(value))
-                    {
-                        indices.add(j);
-                        break;
-                    }
-
-            }
-
+            IndexRange[] rangeArr = rangesColumns.get(i);
+            getIndexRangefColumn(rangeArr,value,indices);
 
         }
 
@@ -137,6 +173,20 @@ public class GridIndex implements Serializable   {
 
     }
 
+
+    public static void getIndexRangefColumn(IndexRange[] rangeArr,Comparable value,Vector<Integer> indices)
+    {
+        for (int j = 0; j <rangeArr.length; j++) {
+            IndexRange range = rangeArr[j];
+            if(range.isInRange(value))
+            {
+                indices.add(j);
+                return;
+            }
+
+        }
+
+    }
 
 
     //Should the min and max be based on the min and max in the CSV?
@@ -155,13 +205,24 @@ public class GridIndex implements Serializable   {
         }
         else if (type.equals(DBApp.stringType))
         {
-
+            int minInt = getSumUnicode((String)min);
+            int maxInt = getSumUnicode((String)max);
+            intializeColumnRangeNumerical(columnName,minInt,maxInt);
         }
         else
         {
 
         }
 
+    }
+
+    public static int getSumUnicode(String string) {
+        int sumUnicode =0;
+
+        for (int i = 0; i < string.length(); i++) {
+            sumUnicode+=string.charAt(i);
+        }
+        return sumUnicode;
     }
 
     private void intializeColumnRangeNumerical(String columnName, Number min, Number max) {
@@ -177,8 +238,12 @@ public class GridIndex implements Serializable   {
 
             addRange(columnRange,arrayIndex,columnName,minBoundary,increment);
             minBoundary+=increment;
+            //round to decimal
+            minBoundary=Math.round(minBoundary*100.0)/100.0;
             arrayIndex++;
         }
+
+        rangesColumns.add(columnRange);
 
     }
 
@@ -199,7 +264,7 @@ public class GridIndex implements Serializable   {
         } else {
             double minDouble = (double) min;
             double maxDouble = (double) max;
-            increment = (minDouble - maxDouble) / 10;
+            increment = (maxDouble-minDouble) / 10;
 
         }
         return increment;
@@ -212,7 +277,14 @@ public class GridIndex implements Serializable   {
 
     public String getBucketFromIndex(Vector<Integer> indeces){
 
-        return getBucketFromIndexRec(indeces,gridIndex);
+        Vector<Integer> indicesClone = new Vector<>();
+
+        for (Integer i :
+                indeces) {
+            indicesClone.add(i);
+        }
+
+        return getBucketFromIndexRec(indicesClone,gridIndex);
         
     }
 
@@ -257,14 +329,14 @@ public class GridIndex implements Serializable   {
         }
     }
 
-     void inesrtRecordToIndex(Hashtable<String,Object> record,String pageName,int indexInPage)
+     void inesrtRecordToIndex(Hashtable<String,Object> record,String pageName)
     {
         Vector<Integer> indices =getBucketIndices(record);
         //bucketName may be null !!
         String bucketName = getBucketFromIndex(indices);
         Vector<Object> bucket = getBucketToInsertIn(bucketName,indices);
 
-        BucketIndex bucketIndex = new BucketIndex(columnsIndexed,pageName,indexInPage);
+        BucketIndex bucketIndex = new BucketIndex(columnsIndexed,pageName);
         DBApp.insertToBucket(bucket,bucketIndex,this);
 
 

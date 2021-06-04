@@ -77,7 +77,51 @@ public class DBApp implements DBAppInterface{
     private static final ArrayList<Table> tables = new ArrayList<Table>();
     private static final Vector<GridIndex> indices = new Vector<>();
 
+    public static void writeIndexToFile(GridIndex index) {
+        String indexFileName = index.getFileName();
+        String indexPath = pagesDirectoryPath + "/" + indexFileName;
+        try {
+            createPageFile(indexPath);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        try {
+            FileOutputStream fileOut = new FileOutputStream(indexPath);
+            ObjectOutputStream objectOut = new ObjectOutputStream(fileOut);
+            objectOut.writeObject(index);
+            objectOut.close();
+        } catch (IOException e) {
+            e.printStackTrace();
 
+
+        }
+    }
+
+    public static GridIndex readIndexFromFile(String indexPath)
+    {
+        FileInputStream fileIn = null;
+        try {
+            fileIn = new FileInputStream(indexPath);
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        }
+        ObjectInputStream objectIn = null;
+        try {
+            objectIn = new ObjectInputStream(fileIn);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        GridIndex retIndex = null;
+        try {
+            retIndex = (GridIndex) objectIn.readObject();
+        } catch (IOException e) {
+            e.printStackTrace();
+        } catch (ClassNotFoundException e) {
+            e.printStackTrace();
+        }
+        return retIndex;
+
+    }
 
 
     public void init()  {
@@ -85,18 +129,31 @@ public class DBApp implements DBAppInterface{
 
         try {
             intializeTables();
-            //intializIndeces();
+            intializIndices();
         } catch (IOException e) {
             e.printStackTrace();
         }
         setConfig();
     }
 
+    private void intializIndices() {
+        String[] pages = listPages();
+
+        for (String page :
+                pages) {
+            if (page.contains("index"))
+                intializeIndex(page);
+        }
+    }
+
+    private void intializeIndex(String indexName) {
+        String indexPath = pagesDirectoryPath+"/"+indexName;
+        GridIndex index = readIndexFromFile(indexPath);
+        indices.add(index);
+    }
 
 
-
-
-   public void insertIntoTable(String tableName, Hashtable<String, Object> colNameValue) throws DBAppException, IOException, ClassNotFoundException {
+    public void insertIntoTable(String tableName, Hashtable<String, Object> colNameValue) throws DBAppException, IOException, ClassNotFoundException {
 
 
         Table table= getTable(tableName);
@@ -145,6 +202,7 @@ public class DBApp implements DBAppInterface{
 
                insertToPage(mainPageVector,colNameValue,table);
                writeVectorToPageFile(mainPageVector);
+
                return;
 
 
@@ -197,6 +255,7 @@ public class DBApp implements DBAppInterface{
                        //
                         //insert to overflow page
                        insertToVector(overflowPageVector,colNameValue,clusteringColumn);
+                       insertRecordToIndices(colNameValue,overflowPageVector,table);
                        modifyHeader(overflowPageVector,table);
                        modifyMainPageVectorHeadeAfterInsertOverflow(mainPageVector,colNameValue,table);
                        writeVectorToPageFile(mainPageVector);
@@ -239,13 +298,22 @@ public class DBApp implements DBAppInterface{
         String clusteringColumn = table.getClusteringColumn();
         Hashtable<String,Object> overflowRecord = null;
         insertToVector(toInsertIn,colNameValue,clusteringColumn);
+        //Index ----- -&&&&&& ------
+        insertRecordToIndices(colNameValue,toInsertIn,table);
+        //&&&&&&&&&&&&&&&&&&&&&&&&&&&
         overflowRecord = toInsertIn.lastElement();
         toInsertIn.remove(overflowRecord);
-        insertToVector(toShiftTo,colNameValue,clusteringColumn);
+        insertToVector(toShiftTo,overflowRecord,clusteringColumn);
+        //Index ----- -&&&&&& ------
+        //REMOVE FROM INDEX
+        insertRecordToIndices(overflowRecord,toShiftTo,table);
+        //&&&&&&&&&&&&&&&&&&&&&&&&&&&
+
         Hashtable<String,Object> overflowFromSecondPage = null;
         if (checkIfPageisMoreThanFull(toShiftTo)) {
             overflowFromSecondPage = toShiftTo.lastElement();
             toShiftTo.remove(overflowFromSecondPage);
+            //REMOVE FROM INDEX
         }
         modifyHeader(toInsertIn,table);
         modifyHeader(toShiftTo,table);
@@ -405,6 +473,7 @@ public class DBApp implements DBAppInterface{
         String clusteringColumn = table.getClusteringColumn();
         insertToVector(mainPageVector,colNameValue,clusteringColumn);
         modifyHeader(mainPageVector,table);
+        insertRecordToIndices(colNameValue,mainPageVector,table);
 //        writeVectorToPageFile(mainPageVector);
 
     }
@@ -449,7 +518,7 @@ public class DBApp implements DBAppInterface{
         mainPageVector.insertElementAt(colNameValue,indexToInsertIn);
     }
 
-    private static ArrayList<Vector<Hashtable<String,Object>>> getOverflowPages(Vector<Hashtable<String, Object>> mainPageVector)  {
+    public static ArrayList<Vector<Hashtable<String,Object>>> getOverflowPages(Vector<Hashtable<String, Object>> mainPageVector)  {
         ArrayList<Vector<Hashtable<String,Object>>> overFlowPages = new ArrayList<>();
         Vector<Hashtable<String, Object>> overFlowPageVector = null;
         Vector<Hashtable<String, Object>> loopPageVector = mainPageVector;
@@ -1031,15 +1100,53 @@ public class DBApp implements DBAppInterface{
 //    }
 
 
+    public static void insertRecordToIndices(Hashtable<String,Object> record , Vector pageVector,Table table)
+    {
+        Vector<GridIndex> tableIndices = getTableIndices(table);
+
+        for (GridIndex index :
+                tableIndices) {
+            insertRecordToIndex(record,pageVector,index);
+        }
+        
+    }
+
+    private static Vector<GridIndex> getTableIndices(Table table) {
+
+        Vector<GridIndex> tableIndices = new Vector<>();
+        for (GridIndex index :
+                indices) {
+            if(isIndexOfTable(index,table))
+                tableIndices.add(index);
+        }
+
+        return tableIndices;
+
+
+    }
+
+    private static boolean isIndexOfTable(GridIndex index, Table table) {
+
+        return index.getTable().getName().equals(table.getName());
+    }
+
+    public static void insertRecordToIndex(Hashtable<String,Object> record , Vector pageVector,GridIndex index)
+    {
+        String pageName =getPageNameFromHeader(pageVector);
+        index.inesrtRecordToIndex(record,pageName);
+    }
+
     public static String getPageName(String tableName,int pageNumber){
         return tableName +""+pageNumber+".class";
     }
 
     public static void insertIntoEmptyTable(Table table, Hashtable<String,Object> colNameValue) throws IOException, ClassNotFoundException {
         Vector<Hashtable<String,Object>> pageVector = createPage(table);
+
         pageVector.add(colNameValue);
         modifyHeader(pageVector,table);
         writeVectorToPageFile(pageVector);
+        insertRecordToIndices(colNameValue,pageVector,table);
     }
 
     public static void modifyMainPageVectorHeadeAfterInsertOverflow(Vector<Hashtable<String,Object>> pageVector,Hashtable<String,Object> colNameValue,Table table)
@@ -1098,7 +1205,7 @@ public class DBApp implements DBAppInterface{
     public static boolean checkPageTable(Table table,String pageName)
     {
         String  tableName = table.getName();
-        return (pageName.startsWith(tableName) && !pageName.contains("_overflow")) &&!pageName.contains("Bucket") ;
+        return (pageName.startsWith(tableName) && !pageName.contains("_overflow")) &&!pageName.contains("Bucket") &&!pageName.contains("Index") ;
     }
 
     public static String[] listPages(){
@@ -1681,6 +1788,25 @@ public class DBApp implements DBAppInterface{
         return bucket.size()>= maxIndexBucket+1;
     }
 
+    public static boolean checkIfIndexed(String tableName ,Hashtable<String,Object> checkConditions){
+
+        for (int i = 0; i <indices.size() ; i++) {
+            GridIndex temp=indices.get(i);
+            if(temp.getTable().getName().equals(tableName)){
+                String[] tempInd = temp.columnsIndexed;
+                for (int j = 0; j <tempInd.length ; j++) {
+                    Set<String> keys=checkConditions.keySet();
+                    for (String key: keys){
+                        if(key.equals(tempInd[j]))
+                            return true;
+                    }
+
+                }
+            }
+
+        }
+        return false;
+    }
 //    public static void insertToIndex(Hashtable<String,Object> record,GridIndex index){
 //
 //        //
@@ -1688,45 +1814,49 @@ public class DBApp implements DBAppInterface{
 //    }
 
     public static void main(String[] args) throws DBAppException, IOException, ClassNotFoundException {
-//        String strTableName = "Student";
-//        DBApp dbApp = new DBApp( );
-//        dbApp.init();
+        String strTableName = "Student";
+        DBApp dbApp = new DBApp( );
+        dbApp.init();
+
+        Hashtable htblColNameType = new Hashtable( ); htblColNameType.put("id", "java.lang.Integer");
+        htblColNameType.put("name", "java.lang.String");
+        htblColNameType.put("gpa", "java.lang.Double");
+        Hashtable<String,String> htblColNameMin = new Hashtable( );
+        Hashtable<String,String> htblColNameMax = new Hashtable( );
+        htblColNameMin.put("name","A");
+        htblColNameMin.put("gpa","0");
+        htblColNameMin.put("id","0");
+
+        htblColNameMax.put("name","AAAAAAAA");
+        htblColNameMax.put("gpa","4");
+        htblColNameMax.put("id","313242");
 //
-//        Hashtable htblColNameType = new Hashtable( ); htblColNameType.put("id", "java.lang.Integer");
-//        htblColNameType.put("name", "java.lang.String");
-//        htblColNameType.put("gpa", "java.lang.Double");
-//        Hashtable<String,String> htblColNameMin = new Hashtable( );
-//        Hashtable<String,String> htblColNameMax = new Hashtable( );
-//        htblColNameMin.put("name","A");
-//        htblColNameMin.put("gpa","0");
-//        htblColNameMin.put("id","0");
 //
-//        htblColNameMax.put("name","AAAAAAAA");
-//        htblColNameMax.put("gpa","4");
-//        htblColNameMax.put("id","313242");
-////
-////
-////
-////
+//
+//
 //        dbApp.createTable( strTableName, "id", htblColNameType,htblColNameMin,htblColNameMax );
-////        dbApp.insertIntoTable(str);
-////          dbApp.init();
-//        Hashtable<String,Object> testHash = new Hashtable<>();
-//        testHash.put("id",1);
-//        testHash.put("name","AA");
-//        testHash.put("gpa",2.0);
-//        Hashtable<String,Object> testHash2 = new Hashtable<>();
-//        testHash2.put("id",2);
-//        testHash2.put("name","A");
-//        testHash2.put("gpa",2.0);
-//        Hashtable<String,Object> testHash3 = new Hashtable<>();
-//        testHash3.put("id",3);
-//        testHash3.put("name","AA");
-//        testHash3.put("gpa",2.0);
 //
-//        dbApp.insertIntoTable(strTableName,testHash2);
-//        dbApp.insertIntoTable(strTableName,testHash);
-//        dbApp.insertIntoTable(strTableName,testHash3);
+        Hashtable<String,Object> testHash = new Hashtable<>();
+        testHash.put("id",1);
+        testHash.put("name","AA");
+        testHash.put("gpa",2.0);
+        Hashtable<String,Object> testHash2 = new Hashtable<>();
+        testHash2.put("id",2);
+        testHash2.put("name","A");
+        testHash2.put("gpa",2.0);
+        Hashtable<String,Object> testHash3 = new Hashtable<>();
+        testHash3.put("id",3);
+        testHash3.put("name","AA");
+        testHash3.put("gpa",2.0);
+
+        dbApp.insertIntoTable(strTableName,testHash2);
+        dbApp.insertIntoTable(strTableName,testHash);
+        dbApp.insertIntoTable(strTableName,testHash3);
+
+        dbApp.createIndex(strTableName,new String[]{"gpa","name"});
+        GridIndex index = readIndexFromFile(pagesDirectoryPath+"/StudentIndex_gpa_name.class");
+//        dbApp.insertIntoTable(str);
+////          dbApp.init();
 //        Vector v =readVectorFromPageFile(getPagePath("Student0.class"));
 //        Hashtable<String,Object> testHash1 = new Hashtable<>();
 ////        testHash1.put("id",1);

@@ -1,9 +1,10 @@
 import org.junit.platform.engine.support.hierarchical.OpenTest4JAwareThrowableCollector;
 
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Hashtable;
 
-public class Table {
+public class Table implements Serializable {
     private String tableName;
     private String clusteringColumn;
     // max min
