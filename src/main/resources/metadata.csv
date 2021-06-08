@@ -52,3 +52,6 @@ Student,id,java.lang.Integer,TRUE,FALSE,0,313242
 Student,gpa,java.lang.Double,FALSE,FALSE,0,4
 Student,name,java.lang.String,FALSE,FALSE,A,AAAAAAAA
 Student,id,java.lang.Integer,TRUE,FALSE,0,313242
+Student,gpa,java.lang.Double,FALSE,FALSE,0,4
+Student,name,java.lang.String,FALSE,FALSE,A,AAAAAAAA
+Student,id,java.lang.Integer,TRUE,FALSE,0,313242

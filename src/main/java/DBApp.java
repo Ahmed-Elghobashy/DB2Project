@@ -862,7 +862,7 @@ public class DBApp implements DBAppInterface{
         }
     }
 
-    public static boolean operatorChecker(String operator,Comparable record,String compareValue){
+    public static boolean operatorChecker(String operator,Comparable record,Comparable compareValue){
         switch(operator){
             case "=": return record.equals(compareValue);
             case "!=": return !record.equals(compareValue );
@@ -874,16 +874,16 @@ public class DBApp implements DBAppInterface{
         }
     }
 
-    public static boolean conditionCheck(Hashtable<String,Object> record,String columnName,String value,String operator){
+    public static boolean conditionCheck(Hashtable<String,Object> record,String columnName,Object value,String operator){
             Comparable recordValue = (Comparable) record.get(columnName);
-            if (operatorChecker(operator,recordValue,value)){
+            if (operatorChecker(operator,recordValue, (Comparable) value)){
                 return true;
             }
         return false;
         }
 
 
-    public static ArrayList<Hashtable<String, Object>> searchAllRecordsFromPage(Vector<Hashtable<String,Object>>pageVector,String columnName,String value,String operator) {
+    public static ArrayList<Hashtable<String, Object>> searchAllRecordsFromPage(Vector<Hashtable<String,Object>>pageVector,String columnName,Object value,String operator) {
         ArrayList<Hashtable<String, Object>> records=new ArrayList<Hashtable<String, Object>>();
         for (int i = 1; i < pageVector.size(); i++) {
             Hashtable<String,Object> record=pageVector.get(i);
@@ -894,7 +894,7 @@ public class DBApp implements DBAppInterface{
         }
         return records;
     }
-        public static ArrayList<Hashtable<String, Object>> searchAllRecordsFromOverflowPages(ArrayList<Vector<Hashtable<String,Object>>>overFlowArray,String columnName,String value,String operator)  {
+        public static ArrayList<Hashtable<String, Object>> searchAllRecordsFromOverflowPages(ArrayList<Vector<Hashtable<String,Object>>>overFlowArray,String columnName,Object value,String operator)  {
         ArrayList<Hashtable<String, Object>> records = new ArrayList<Hashtable<String, Object>>();
         for (int i = 0; i <overFlowArray.size() ; i++) {
                 Vector<Hashtable<String, Object>> overflowPageVector = overFlowArray.get(i);
@@ -909,6 +909,60 @@ public class DBApp implements DBAppInterface{
 
         }
 
+    public GridIndex getIndexOfColumns(String tableName, Vector<String>columnNames){
+        Vector<GridIndex> tableIndices = getTableIndices(tableName);
+        for (GridIndex index :
+                tableIndices) {
+            if (isIndexOfColumns(index, columnNames)) {
+                return index;
+            }
+        }
+
+        return null;
+    }
+
+    private boolean isIndexOfColumns(GridIndex index, Vector<String> columnNames) {
+        String[] columnsIndexed=index.getColumnsIndexed();
+        boolean columnFound=false;
+        for (String column :
+                columnsIndexed) {
+            for(int i=0;i< columnNames.size();i++){
+                if(column.equals(columnNames.get(i))){
+                    columnNames.remove(i);
+                    columnFound=true;
+                    break;
+                }
+            }
+            if(columnFound==false){
+                return false;
+            }
+            columnFound=false;
+        }
+        if(columnNames.isEmpty()){
+            return true;
+        }
+        else {
+            return false;
+        }
+        }
+        public Vector<String> getTermsColumns(SQLTerm[] sqlTerms){
+        Vector<String> columns=new Vector<>();
+        for(int i=0;i<sqlTerms.length;i++){
+            columns.add(sqlTerms[i].columnName);
+        }
+        return columns;
+        }
+    public Vector<GridIndex> getTableIndices(String tableName){
+        GridIndex index=null;
+        Vector<GridIndex> tableIndices=new Vector<GridIndex>();
+        for(int i=0;i<indices.size();i++){
+            index=indices.get(i);
+            if(index.table.getName().equals(tableName)){
+            tableIndices.add(index);
+            }
+        }
+        return tableIndices;
+    }
     public ArrayList<Hashtable<String, Object>> selectFromIndexedTable(SQLTerm sqlTerm,String[] arrayOperators)throws DBAppException{
 
         return null;
@@ -932,7 +986,7 @@ public class DBApp implements DBAppInterface{
             records.addAll(searchAllRecordsFromPage(pageVector,sqlTerm.columnName, sqlTerm.objValue,sqlTerm.operator));
             records.addAll(searchAllRecordsFromOverflowPages(overflowPages, sqlTerm.columnName, sqlTerm.objValue,sqlTerm.operator));
         }
-        return null;
+        return records;
     }
     public ArrayList<Hashtable<String, Object>> arrayOperatorGenerator(String operator,ArrayList<Hashtable<String, Object>>record,ArrayList<Hashtable<String, Object>>temp,String clusteringColumn){
         boolean Flag=false;
@@ -999,32 +1053,25 @@ public class DBApp implements DBAppInterface{
         ArrayList<Hashtable<String, Object>> records = new ArrayList<Hashtable<String, Object>>();
         ArrayList<Hashtable<String, Object>> temp= new ArrayList<Hashtable<String, Object>>();
         boolean Indexed=false;
-    for(int i=0;i< sqlTerms.length;i++){
-
-        if(i==0) {
-            if (sqlTerms.checkIfIndexed(sqlTerms[i].tableName)) {
-                Indexed=true;
-                records.addAll(selectFromIndexedTable(sqlTerms[i], arrayOperators));
-            } else {
-                records.addAll(selectFromNonIndexedTable(sqlTerms[i], arrayOperators));
+        String tableName=sqlTerms[0].tableName;
+        Vector<String> selectionColumns = getTermsColumns(sqlTerms);
+        GridIndex index=getIndexOfColumns(tableName,selectionColumns);
+        if(index==null) {
+            for (int i = 0; i < sqlTerms.length; i++) {
+                if (i == 0) {
+                    temp=selectFromNonIndexedTable(sqlTerms[i], arrayOperators);
+                    records.addAll(temp);
+                } else {
+                    Table table = getTable(sqlTerms[i].tableName);
+                    String clusteringColumn = table.getClusteringColumn();
+                    temp = (selectFromNonIndexedTable(sqlTerms[i], arrayOperators));
+                    records = (arrayOperatorGenerator(arrayOperators[i], records, temp, clusteringColumn));
+                }
             }
         }
-        else {
-            Table table=getTable(sqlTerms[i].tableName);
-            String clusteringColumn=table.getClusteringColumn();
-            if (Indexed) {
-                temp=(selectFromIndexedTable(sqlTerms[i], arrayOperators));
-                records=(arrayOperatorGenerator(arrayOperators[i],records,temp,clusteringColumn));
-            } else {
-
-                temp=(selectFromNonIndexedTable(sqlTerms[i], arrayOperators));
-                records=(arrayOperatorGenerator(arrayOperators[i],records,temp,clusteringColumn));
-            }
+        else{
 
         }
-
-        }
-
        Iterator iterator=records.iterator();
        return iterator;
     }
@@ -1991,7 +2038,7 @@ public class DBApp implements DBAppInterface{
 //
 //
 //
-//        dbApp.createTable( strTableName, "id", htblColNameType,htblColNameMin,htblColNameMax );
+       dbApp.createTable( strTableName, "id", htblColNameType,htblColNameMin,htblColNameMax );
 //
         Hashtable<String,Object> testHash = new Hashtable<>();
         testHash.put("id",1);
@@ -2005,13 +2052,29 @@ public class DBApp implements DBAppInterface{
         testHash3.put("id",3);
         testHash3.put("name","AA");
         testHash3.put("gpa",2.0);
+        SQLTerm[] arrSQLTerms;
+        arrSQLTerms = new SQLTerm[2];
+        arrSQLTerms[0]=new SQLTerm();
+        arrSQLTerms[0].tableName = "Student";
+        arrSQLTerms[0].columnName= "name";
+        arrSQLTerms[0].operator = "=";
+        arrSQLTerms[0].objValue = "AA";
+        arrSQLTerms[1]=new SQLTerm();
+        arrSQLTerms[1].tableName = "Student";
+        arrSQLTerms[1].columnName= "gpa";
+        arrSQLTerms[1].operator = "=";
+        arrSQLTerms[1].objValue = new Double( 2.0 );
 
         dbApp.insertIntoTable(strTableName,testHash2);
         dbApp.insertIntoTable(strTableName,testHash);
         dbApp.insertIntoTable(strTableName,testHash3);
+        String[]strarrOperators = new String[1];
+        strarrOperators[0] = "OR";
+// select * from Student where name = “John Noor” or gpa = 1.5;
+        Iterator resultSet = dbApp.selectFromTable(arrSQLTerms , strarrOperators);
 
-        dbApp.createIndex(strTableName,new String[]{"gpa","name"});
-        GridIndex index = readIndexFromFile(pagesDirectoryPath+"/StudentIndex_gpa_name.class");
+  //      dbApp.createIndex(strTableName,new String[]{"gpa","name"});
+ //       GridIndex index = readIndexFromFile(pagesDirectoryPath+"/StudentIndex_gpa_name.class");
 //        dbApp.insertIntoTable(str);
 ////          dbApp.init();
 //        Vector v =readVectorFromPageFile(getPagePath("Student0.class"));

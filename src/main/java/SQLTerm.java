@@ -2,7 +2,7 @@ public class SQLTerm {
     String tableName;
     String columnName;
     String operator;
-    String objValue;
+    Object objValue;
 
     public String getTableName() {
         return tableName;
@@ -28,11 +28,11 @@ public class SQLTerm {
         this.operator = operator;
     }
 
-    public String getObjValue() {
+    public Object getObjValue() {
         return objValue;
     }
 
-    public void setObjValue(String objValue) {
+    public void setObjValue(Object objValue) {
         this.objValue = objValue;
     }
 }

@@ -275,12 +275,12 @@ public class GridIndex implements Serializable   {
     //recursive method to get to the cell where the BucketIndex is
     // will return null if the cell is empty
 
-    public String getBucketFromIndex(Vector<Integer> indeces){
+    public String getBucketFromIndex(Vector<Integer> indices){
 
         Vector<Integer> indicesClone = new Vector<>();
 
         for (Integer i :
-                indeces) {
+                indices) {
             indicesClone.add(i);
         }
 
