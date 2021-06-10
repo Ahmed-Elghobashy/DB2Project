@@ -16,7 +16,13 @@ public class GridIndex implements Serializable   {
     //Grid index GI 4D array
     // GI[0][3][6][1]
  //   10-20, 20-30
-//    [ [0,  1    ,2,3,4]          // 10-20 k
+    //[0-10,10-20,---][20-40,40-60,...][30-40,40-50,60-70]
+    //[[0,1],[3,4],[3,4,5]
+    //[0,3,3],[0
+    //GI[1][2],GI[1][3],GI[1][4],GI
+    //GI[1][0],GI[1][1],GI[2][0],GI
+    //GI[1][0],GI[1][1],GI[
+//    [ [0,1,2,3,4]          // 10-20 k
 //      []          //20-30k
 //      []
 //      []
@@ -288,16 +294,16 @@ public class GridIndex implements Serializable   {
         
     }
 
-    public String getBucketFromIndexRec(Vector<Integer> indeces, Object[] array){
+    public String getBucketFromIndexRec(Vector<Integer> indices, Object[] array){
 
-        if(indeces.size()==1) {
-            int index =indeces.get(0);
+        if(indices.size()==1) {
+            int index =indices.get(0);
             return (String) array[index];
         }
-        int index = indeces.remove(0);
+        int index = indices.remove(0);
         Object[] loopArray = (Object[]) array[index];
 
-        return getBucketFromIndexRec(indeces,loopArray);
+        return getBucketFromIndexRec(indices,loopArray);
 
     }
 

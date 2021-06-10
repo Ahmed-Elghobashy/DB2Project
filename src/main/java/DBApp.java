@@ -1070,11 +1070,101 @@ public class DBApp implements DBAppInterface{
             }
         }
         else{
-
+            
         }
        Iterator iterator=records.iterator();
        return iterator;
     }
+    //------------------------------------------------------------------------------------------------------
+    public Vector<Vector<Integer>> bucketIndices(GridIndex index,Vector<Vector<Integer>> columnIndices,String arrOperator){
+        Vector<IndexRange[]> ranges=index.getRangesColumns();
+        int column;
+        int dimension=columnIndices.size();
+        Vector<Integer> bucketIndex=new Vector<>(dimension);
+        Vector<Vector<Integer>> bucketIndices=new Vector<>();
+        switch(arrOperator){
+            case "OR":{
+                for(int i=0;i<columnIndices.size();i++){
+                    for (int j = 0; j < columnIndices.get(i).size() ; j++){
+                       column= columnIndices.get(i).get(j);
+                       for(int k=0;)
+                    }
+                }
+            }
+
+        }
+        return bucketIndices;
+    }
+    public static Vector<Vector<Integer>> columnIndices(GridIndex index,SQLTerm sqlTerms[]){
+        Vector<Vector<Integer>> columnIndices=new Vector<>();
+        Vector<IndexRange[]> ranges=index.getRangesColumns();
+        for(int i=0; i<sqlTerms.length;i++){
+            String column=sqlTerms[i].columnName;
+            for(int j=0;j<ranges.size();j++){
+                if((ranges.get(j))[0].columnName.equals(column)){
+                    columnIndices.add(bucketChecker(sqlTerms[i].operator,ranges.get(j),(Comparable) sqlTerms[i].objValue));
+                    break;
+                }
+            }
+        }
+        return columnIndices;
+    }
+    public static Vector<Integer> bucketChecker(String operator,IndexRange[] ranges,Comparable compareValue){
+        Vector<Integer> buckets=new Vector<>();
+        switch(operator){
+            case "=": {
+                for(int i=0;i<ranges.length;i++){
+                    if(ranges[i].isInRange(compareValue)){
+                        buckets.add(i);
+                        break;
+                    }
+                }
+                return buckets;
+            }
+            case "!=": {
+                for(int i=0;i<ranges.length;i++){
+                    if(!ranges[i].isInRange(compareValue)){
+                        buckets.add(i);
+                    }
+                }
+                return buckets;
+            }
+            case ">": {
+                for(int i=0;i<ranges.length;i++){
+                    if(ranges[i].min.compareTo(compareValue)>=0||ranges[i].max.compareTo(compareValue)<0){
+                        buckets.add(i);
+                    }
+                }
+                return buckets;
+            } //min>compareValue
+            case ">=":{
+                for(int i=0;i<ranges.length;i++){
+                if(ranges[i].min.compareTo(compareValue)>=0||ranges[i].max.compareTo(compareValue)<=0){
+                    buckets.add(i);
+                }
+            }
+                return buckets;
+        }
+            case "<":{
+                for(int i=0;i<ranges.length;i++){
+                if(ranges[i].min.compareTo(compareValue)<0||ranges[i].max.compareTo(compareValue)>=0){
+                    buckets.add(i);
+                }
+            }
+                return buckets;
+        }
+            case "<=": {
+                for(int i=0;i<ranges.length;i++){
+                    if(ranges[i].min.compareTo(compareValue)<=0||ranges[i].max.compareTo(compareValue)>=0){
+                        buckets.add(i);
+                    }
+                }
+                return buckets;
+            }
+            default: return buckets;
+        }
+    }
+//------------------------------------------------------------------------------------------------------------
 
 
     private static void setConfig() {
